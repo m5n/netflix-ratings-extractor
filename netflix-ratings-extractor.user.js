@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // NetFlix Movie Extractor (with IMDB Lookup)
-// Version 1.0, 2008-08-31
+// Version 1.1, 2008-09-01
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -33,10 +33,12 @@
 // - This script consumes a lot of memory and is CPU intensive, and it is
 //   recommended to let it run without doing anything else.
 //   If you have a large number of ratings, you may want to edit the script
-//   and output less info.
-//   For me, with the IMDB lookup option enabled, the Firefox process grew
-//   to 321Mb and took 2082 seconds to complete 1053 ratings.
-//   The resulting output was 72044 bytes.
+//   and output less info.  Also, it's slow.
+//   For me, without IMDB lookup, the Firefox process grew to 348Mb and
+//   took 471 seconds to complete 1053 ratings, resulting in 51179 bytes of
+//   output.  With the IMDB lookup option enabled, the Firefox process grew
+//   to 319Mb and took 2674 seconds to complete 1053 ratings, resulting in
+//   71826 bytes of output.
 //
 // Additional known issues when the IMDB lookup option is enabled:
 // - Year differences between Netflix and IMDB can lead to an incorrect
@@ -47,7 +49,7 @@
 //   Nothing can be done about this. Either Netflix or IMDB needs to update
 //   their dates.
 // - Title and year differences between Netflix and IMDB are the primary
-//   reason an IMDB movie ID cannot be resolved. In my case, 184 out of 1053
+//   reason an IMDB movie ID cannot be resolved. In my case, 193 out of 1053
 //   movies weren't found. You'll have to find and add the IMDB IDs for those
 //   movies manually. (To find the missing IDs, search for <tab><tab> in the
 //   output.)
@@ -87,10 +89,12 @@
 // 4. Greasemonkey will ask you to install the script.  Choose Install.
 //
 // Usage instructions:
-// 1. Go to Netflix and log in.
-// 2. At bottom of page find the start/stop buttons and results area.
-// 3. Click the start button
-// 4. When the script finishes, you can copy-and-paste the data in the results
+// 1. Restart Firefox; the script will consume lots of memory, so don't use
+//    the browser while this script runs. 
+// 2. Go to Netflix and log in.
+// 3. At bottom of page find the start/stop buttons and results area.
+// 4. Select the options you want and click the start button
+// 5. When the script finishes, you can copy-and-paste the data in the results
 //    area for further processing.  The first row has the column titles.
 //    Columns are tab-separated.
 //
@@ -132,6 +136,7 @@ var singleton = (function() {
     var _XHR_REQUEST_DELAY = 500;
     var _LET_FUNCTION_EXIT_DELAY = 100;
     var _imdbQueue = [];
+    var _imdbQueueIndex = 0;
     var _totalPages = 0;
     var _totalRatings = 0;
     var _stop = false;
@@ -140,7 +145,7 @@ var singleton = (function() {
     // _GET_IMDB_DATA
     // Set this to true to get additional IMDB data to match the Netflix data.
     // Set it to false to only get the Netflix data.
-    var _GET_IMDB_DATA = true;
+    var _GET_IMDB_DATA = false;
 
     // _TRY_AKA_MATCH
     // Set this to true to try and match movie aliases in case of conflict.
@@ -196,7 +201,7 @@ var singleton = (function() {
         var tOutput = document.createElement('textarea');
         tOutput.setAttribute('id', 'script_output');
         tOutput.setAttribute('rows', '7');
-        tOutput.setAttribute('cols', '120');
+        tOutput.setAttribute('cols', '110');
 
         // Create GUI container.
         var gui = document.createElement('div');
@@ -251,7 +256,7 @@ var singleton = (function() {
                 + 'recommended'));
         td.appendChild(document.createElement('br'));
         td.appendChild(document.createTextNode(
-                'that only users with lots of foreign movie use this '
+                'that only users with lots of foreign movie titles use this '
                 + 'option.'));
         td.appendChild(document.createElement('br'));
         td.appendChild(document.createTextNode(
@@ -327,9 +332,10 @@ var singleton = (function() {
     }
 
     function _doImdbWork() {
-        if (_imdbQueue.length > 0) {
+        if (_imdbQueueIndex < _imdbQueue.length) {
             // Do more work.
-            var work = _imdbQueue.shift();
+            var work = _imdbQueue[_imdbQueueIndex];
+            _imdbQueueIndex++;
 
             var delayed = function() { 
                 _getImdbId(work);
