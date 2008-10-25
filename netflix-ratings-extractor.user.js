@@ -2,69 +2,35 @@
 //
 // This is a Greasemonkey user script.
 //
-// NetFlix Movie Extractor (with IMDB Lookup)
-// Version 1.1, 2008-09-01
+// Netflix Movie Extractor (with IMDB Lookup)
+// Version 1.2, 2008-10-25
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
 // ==UserScript==
-// @name           NetFlix Movie Extractor (with IMDB Lookup)
+// @name           Netflix Movie Extractor (with IMDB Lookup)
 // @namespace      http://tenhanna.com/greasemonkey
-// @description    Extracts your rated NetFlix movies + their IMDB movie ids.
+// @author         Maarten
+// @version        1.2
+// @description    v1.2: Export your Netflix movie ratings and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // ==/UserScript==
 //
 ///////////////////////////////////////////////////////////////////////////////
 //
+// For install, uninstall, and known issues, see the namespace link above.
+//
+///////////////////////////////////////////////////////////////////////////////
+//
 // This script will scrape the Netflix pages containing your rated movies,
 // extract the name, rating, etc, and tries to get the IMDB ID for it.
-// (To get to the Ratings page: Movies You'll Love -> Movies You've Rated.)
+// (You can run the script from any Netflix page, but to see your ratings page,
+// navigate to: Movies You'll Love -> Movies You've Rated.)
 // An IMDB movie URL can be reconstructed like so:
 // 
 //     http://www.imdb.com/title/<imdb_id>/
 //
-// Known Issues:
-// - The Netflix total ratings count may be wrong.  In my case, Netflix
-//   reports a total of 1054 ratings, but there are only 1053 movies rated.
-//   (You can check this by navigating to the last page, and counting the
-//   number of ratings on it.  In my case, the last page is 53, and there
-//   are only 13 ratings on it.  That's 52 * 20 + 13 = 1053.)
-//   Nothing can be done about this; this is a bug on Netflix's side.
-// - This script consumes a lot of memory and is CPU intensive, and it is
-//   recommended to let it run without doing anything else.
-//   If you have a large number of ratings, you may want to edit the script
-//   and output less info.  Also, it's slow.
-//   For me, without IMDB lookup, the Firefox process grew to 348Mb and
-//   took 471 seconds to complete 1053 ratings, resulting in 51179 bytes of
-//   output.  With the IMDB lookup option enabled, the Firefox process grew
-//   to 319Mb and took 2674 seconds to complete 1053 ratings, resulting in
-//   71826 bytes of output.
-//
-// Additional known issues when the IMDB lookup option is enabled:
-// - Year differences between Netflix and IMDB can lead to an incorrect
-//   IMDB movie ID. "Crash" is an example. Netflix has it as made in 2005,
-//   but the IMDB year is 2004, and as IMDB also has a movie called "Crash"
-//   made in 2005 in its DB, that one will be incorrecly matched to the
-//   Netflix version.
-//   Nothing can be done about this. Either Netflix or IMDB needs to update
-//   their dates.
-// - Title and year differences between Netflix and IMDB are the primary
-//   reason an IMDB movie ID cannot be resolved. In my case, 193 out of 1053
-//   movies weren't found. You'll have to find and add the IMDB IDs for those
-//   movies manually. (To find the missing IDs, search for <tab><tab> in the
-//   output.)
-//   An error is logged whenever the IMDB ID cannot be determined; the script
-//   will write the IMDB ID as an empty string and continue.
-//
-// Additional known issues when both IMDB and "match aliases" options are
-// enabled:
-// - The "best-effort" movie title matching is only used when the IMDB movie
-//   ID cannot be resolved using the Netflix title. In that case, getting an
-//   exact match is still likely, but due to the complexity of IMDB's AKA
-//   listing, cannot be guaranteed. Be advised that using this version could
-//   lead to an incorrect IMDB ID match, so it is recommended only users with
-//   lots of foreign movie titles turn this on. (And double-check afterwards
-//   that the IDs were correctly identified.)
+///////////////////////////////////////////////////////////////////////////////
 //
 // This script is based on Anthony Lieuallen's "getFlix Revamped"
 // (http://web.arantius.com/getflix-revamped).
@@ -78,30 +44,6 @@
 // (http://ejohn.org/projects/netflix).
 //
 // Needless to say I'm standing on the shoulders of giants.
-//
-///////////////////////////////////////////////////////////////////////////////
-//
-// Installation instructions:
-// 1. Install Greasemonkey: https://addons.mozilla.org/en-US/firefox/addon/748
-// 2. Restart Firefox.
-// 3. Load this user script into Firefox: File->Open File, or go to 
-//    http://tenhanna.com/greasemonkey/ and choose the script.
-// 4. Greasemonkey will ask you to install the script.  Choose Install.
-//
-// Usage instructions:
-// 1. Restart Firefox; the script will consume lots of memory, so don't use
-//    the browser while this script runs. 
-// 2. Go to Netflix and log in.
-// 3. At bottom of page find the start/stop buttons and results area.
-// 4. Select the options you want and click the start button
-// 5. When the script finishes, you can copy-and-paste the data in the results
-//    area for further processing.  The first row has the column titles.
-//    Columns are tab-separated.
-//
-// Un-installation instructions:
-// 1. Tools->Greasemonkey->Manage User Scripts...
-// 2. Select the script to uninstall.
-// 3. Click Uninstall
 //
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -133,7 +75,11 @@ var singleton = (function() {
     // Private variables
     //
 
+    // There is a delay of 500ms between each XHR request.  Any value lower
+    // than that causes some queries to return zero results.  You may have
+    // to tweak that value if you customize this script for your own needs.
     var _XHR_REQUEST_DELAY = 500;
+
     var _LET_FUNCTION_EXIT_DELAY = 100;
     var _imdbQueue = [];
     var _imdbQueueIndex = 0;
@@ -141,6 +87,7 @@ var singleton = (function() {
     var _totalRatings = 0;
     var _stop = false;
     var _timer = null;
+    var _startTime = 0;
 
     // _GET_IMDB_DATA
     // Set this to true to get additional IMDB data to match the Netflix data.
@@ -163,11 +110,51 @@ var singleton = (function() {
     function _buildGui() {
         // Add options to the Tools->Greasemonkey->User Script Commands menu.
         GM_registerMenuCommand(
-                'Start NetFlix Movie Extractor (with IMDB Lookup)',
+                'Start Netflix Movie Extractor (with IMDB Lookup)',
                 _startScript);
         GM_registerMenuCommand(
-                'Stop NetFlix Movie Extractor (with IMDB Lookup)',
+                'Stop Netflix Movie Extractor (with IMDB Lookup)',
                 _stopScript);
+
+        // Create GUI container.
+        var gui = document.createElement('div');
+        gui.setAttribute('style',
+                'color: #fff; text-align: center; margin: 2em 0; '
+                + 'padding: 0 1em; border: 10px solid #8F0707;');
+
+        var pElt = document.createElement('p');
+        pElt.setAttribute('style', 'font-size: larger; font-weight: bold');
+        pElt.appendChild(document.createTextNode(
+                'Netflix Movie Extractor (with IMDB Lookup)'));
+        gui.appendChild(pElt);
+
+        var realGui;
+        if (document.getElementById('profilesmenu')) {
+            // User is signed in.
+            realGui = _buildSignedInGui();
+        } else {
+            realGui = _buildNotSignedInGui();
+        }
+        gui.appendChild(realGui);
+
+        // Add GUI to the page.
+        var content = document.getElementById('footer');
+        if (!content) {
+            content = document.body;
+        }
+        content.appendChild(gui);
+    }
+
+    function _buildNotSignedInGui() {
+        var gui = document.createElement('p');
+        gui.setAttribute('style', 'font-size: larger');
+        gui.appendChild(document.createTextNode(
+                'Please log in to use this script.'));
+        return gui;
+    }
+
+    function _buildSignedInGui() {
+        var gui = document.createElement('div');
 
         // Create start button.
         var bStart = document.createElement('button');
@@ -200,18 +187,7 @@ var singleton = (function() {
         // Create output area.
         var tOutput = document.createElement('textarea');
         tOutput.setAttribute('id', 'script_output');
-        tOutput.setAttribute('rows', '7');
-        tOutput.setAttribute('cols', '110');
-
-        // Create GUI container.
-        var gui = document.createElement('div');
-        gui.setAttribute('style',
-                'color: #fff; text-align: center; border: 10px solid #8F0707;');
-        gui.appendChild(document.createElement('br'));
-        gui.appendChild(document.createTextNode(
-                'NetFlix Movie Extractor (with IMDB Lookup)'));
-        gui.appendChild(document.createElement('br'));
-        gui.appendChild(document.createElement('br'));
+        tOutput.setAttribute('style', 'width: 100%; height: 9em');
 
         var table = document.createElement('table');
         table.setAttribute('align', 'center');
@@ -274,19 +250,21 @@ var singleton = (function() {
         gui.appendChild(bStop);
         gui.appendChild(document.createElement('br'));
         gui.appendChild(document.createElement('br'));
-        gui.appendChild(document.createTextNode(
+        var span = document.createElement('span');
+        span.setAttribute('style', 'font-size: larger');
+        span.appendChild(document.createTextNode(
                 'Script output (columns are tab-separated):'));
+        gui.appendChild(span);
         gui.appendChild(document.createElement('br'));
         gui.appendChild(tOutput);
         gui.appendChild(document.createElement('br'));
         gui.appendChild(document.createElement('br'));
 
-        // Add GUI to the page.
-        document.body.appendChild(gui);
+        return gui;
     }
 
     function _assertScriptIsRunnable() {
-        // TODO: check logged in
+        var result = true;
 
         // TODO: check at least one movie.
 
@@ -343,7 +321,7 @@ var singleton = (function() {
             _timer = setTimeout(delayed, _XHR_REQUEST_DELAY);
         } else {
             // Done.
-            _stopWorking(false);
+            _stopWorking(false, false);
         }
     }
 
@@ -367,7 +345,7 @@ var singleton = (function() {
         // See http://www.perl.com/doc/manual/html/pod/perlre.html
         // for the special characters that appear in regular expressions.
         var unsafe = "\\^.$|()[]*+?{}";
-        for (ii=0; ii < unsafe.length; ii++) {
+        for (var ii = 0; ii < unsafe.length; ii++) {
             ss = ss.replace(new RegExp("\\" + unsafe.charAt(ii), "g"), "\\" + unsafe.charAt(ii)); 
         }
         return ss;
@@ -389,7 +367,7 @@ var singleton = (function() {
         var url = 'http://www.netflix.com/MoviesYouveSeen?' +
                 'pageNum=' + parseInt(pagenum, 10);
 
-        console.info('Fetch:', url);
+        //_addOutput('Fetch:' + url);
         GM_xmlhttpRequest({
             'method': 'GET',
             'url': url,
@@ -430,9 +408,9 @@ var singleton = (function() {
                 'rating': RegExp.$6 / 10
             };
 
-            console.debug('Netflix: '+detail.id+'\t'+detail.title+'\t'
-                    +detail.year+'\t'+detail.mpaa+'\t'+detail.genre+'\t'
-                    +detail.rating);
+            //_addOutput('Netflix: '+detail.id+'\t'+detail.title+'\t'
+            //        +detail.year+'\t'+detail.mpaa+'\t'+detail.genre+'\t'
+            //        +detail.rating);
 
             if (_GET_IMDB_DATA) {
                 // Make IMDB calls after visiting all ratings pages.
@@ -440,6 +418,20 @@ var singleton = (function() {
             } else {
                 _saveRating(detail);
             }
+        }
+
+        if (0 === _totalRatings) {
+           // Either user has no ratings at all,
+           // or user has not enabled the "accept third-party cookies" setting.
+           if (text.match(/Once you've enabled cookies, /)) {
+               alert('You must enable the "accept third-party cookies" setting.'
+                       + '\nSee the output area for instructions.');
+               _clearOutput();
+               _addOutput('You must enable the "accept third-party cookies" setting:\n1. Windows: Select "Options" from the "Tools" menu.\n   Macintosh: Select "Preferences" from the "Firefox" menu.\n2. Click the "Privacy" icon.\n3. Check the "Accept third-party cookies" checkbox under the "Cookies" section.\n4. Windows: Click "OK" on the "Options" window.\n   Macintosh: Close the "Preferences" window.\n');
+               _addOutput('You may disable the "accept third-party cookies" setting again after running the script.');
+           }
+           _stopWorking(true, true);
+           return;
         }
 
         if (text.match(/paginationLink-next/)) {
@@ -472,7 +464,7 @@ var singleton = (function() {
         var url = 'http://us.imdb.com/find?type=substring&q=' +
                 encodeURI(title) + '&sort=smart;tt=1';
 
-        console.info(logPrefix+':', url);
+        //_addOutput(logPrefix+': ' + url);
         GM_xmlhttpRequest({
             'method': 'GET',
             'url': url,
@@ -525,8 +517,8 @@ var singleton = (function() {
             detail.imdb_id = (1 == idIdx ? RegExp.$1 : RegExp.$2);
             detail.imdb_title = (1 == idIdx ? RegExp.$2 : RegExp.$1);
         } else {
-            console.error('Couldn\'t get IMDB id for '+detail.id+':'
-                    +title+':'+detail.year);
+            //_addOutput('Couldn\'t get IMDB id for '+detail.id+':'
+            //        +title+':'+detail.year);
 
             // Titles like "2001: A Space Odyssey" are correctly resolved,
             // but titles like "Blade Runner: The Final Cut" are not.
@@ -534,7 +526,7 @@ var singleton = (function() {
             var idx = title.lastIndexOf(':');
             if (idx >= 0) {
                 success = false;
-                console.error('Trying again with title = '+detail.imdb_title);
+                //_addOutput('Trying again with title = '+detail.imdb_title);
     
                 detail.imdb_title = detail.title.substring(0, idx);
                 var delayed = function() { 
@@ -569,9 +561,9 @@ var singleton = (function() {
         }
 
         if (success) {
-            console.debug('IMDB: '+detail.id+'\t'+detail.title+'\t'
-                    +detail.year+'\t'+detail.mpaa+'\t'+detail.genre+'\t'
-                    +detail.rating+'\t'+detail.imdb_id+'\t'+detail.imdb_title);
+            //_addOutput('IMDB: '+detail.id+'\t'+detail.title+'\t'
+            //        +detail.year+'\t'+detail.mpaa+'\t'+detail.genre+'\t'
+            //        +detail.rating+'\t'+detail.imdb_id+'\t'+detail.imdb_title);
 
             _saveRating(detail);
 
@@ -613,15 +605,23 @@ var singleton = (function() {
     // Event handler for the Stop button.
     function _stopScript() {
         _stop = true;
-        _stopWorking(true);
+        _stopWorking(true, false);
     }
 
-    function _stopWorking(forced) {
+    function _stopWorking(forced, beSilent) {
         // Stop any delayed jobs.
         clearTimeout(_timer);
         _timer = null;
 
-        _captureEndState(forced);
+        if (!beSilent) {
+            _captureEndState(forced);
+        }
+    }
+
+    // Clears the output area.
+    function _clearOutput(msg) {
+        var output = document.getElementById('script_output');
+        output.value = "";
     }
 
     // Adds a message to the user-readable output area.
