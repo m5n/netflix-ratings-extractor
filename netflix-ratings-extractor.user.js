@@ -3,16 +3,16 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Extractor (with IMDB Lookup)
-// Version 1.2, 2008-10-25
+// Version 1.3, 2008-11-09
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
 // ==UserScript==
 // @name           Netflix Movie Extractor (with IMDB Lookup)
-// @namespace      http://tenhanna.com/greasemonkey
+// @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.2
-// @description    v1.2: Export your Netflix movie ratings and their IMDB movie IDs.
+// @version        1.3
+// @description    v1.3: Export your Netflix movie ratings and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // ==/UserScript==
 //
@@ -50,7 +50,7 @@
 // The code is a nice example of page scraping.  Netflix does not show how
 // many pages with ratings there are, so the script just starts with page 1.
 // (If we knew how many pages there were beforehand, we could use some sort
-// of work queue; see my Last.FM script.)
+// of work queue.)
 // This pattern can be used to do any kind of work if the total amount of work
 // is not known beforehand.  To customize this script to fit a different kind
 // of work load, just re-implement these functions:
@@ -70,7 +70,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 // Singleton pattern.
-var singleton = (function() {
+var NetflixMovieExtractor = (function() {
     //
     // Private variables
     //
@@ -80,7 +80,6 @@ var singleton = (function() {
     // to tweak that value if you customize this script for your own needs.
     var _XHR_REQUEST_DELAY = 500;
 
-    var _LET_FUNCTION_EXIT_DELAY = 100;
     var _imdbQueue = [];
     var _imdbQueueIndex = 0;
     var _totalPages = 0;
@@ -153,6 +152,38 @@ var singleton = (function() {
         return gui;
     }
 
+    function _createFieldset(text) {
+        var fieldset = document.createElement('fieldset');
+        var legend = document.createElement('legend');
+        legend.setAttribute('style', 'color: #fff');
+        legend.appendChild(document.createTextNode(text));
+        fieldset.appendChild(legend);
+        return fieldset;
+    }
+
+    function _addCheckbox(td, id, text, checked, onChangeFn) {
+        var box = document.createElement('input');
+        box.setAttribute('type', 'checkbox');
+        box.setAttribute('id', id);
+        if (checked) {
+            box.setAttribute('checked', 'checked');
+        }
+        if (onChangeFn) {
+            box.addEventListener('change', onChangeFn, true);
+        }
+        var span = document.createElement('span');
+        span.setAttribute('style', 'margin-right: 1em');
+        span.appendChild(document.createTextNode(text));
+        td.appendChild(box);
+        td.appendChild(span);
+    }
+
+    function _addHeader(td, text) {
+        td.setAttribute('align', 'left');
+        td.setAttribute('style', 'font-size: larger; color: #fff');
+        td.appendChild(document.createTextNode(text));
+    }
+
     function _buildSignedInGui() {
         var gui = document.createElement('div');
 
@@ -175,6 +206,7 @@ var singleton = (function() {
         if (_GET_IMDB_DATA) {
             cGetImdbData.setAttribute('checked', 'checked');
         }
+        cGetImdbData.addEventListener('change', _getImdbDataChanged, true);
 
         // Create _TRY_AKA_MATCH option.
         var cTryAkaMatch = document.createElement('input');
@@ -183,22 +215,96 @@ var singleton = (function() {
         if (_TRY_AKA_MATCH) {
             cTryAkaMatch.setAttribute('checked', 'checked');
         }
+        cTryAkaMatch.addEventListener('change', _tryAkaMatchChanged, true);
 
         // Create output area.
         var tOutput = document.createElement('textarea');
         tOutput.setAttribute('id', 'script_output');
         tOutput.setAttribute('style', 'width: 100%; height: 9em');
 
-        var table = document.createElement('table');
-        table.setAttribute('align', 'center');
+        var maintable = document.createElement('table');
+        maintable.setAttribute('align', 'center');
 
         var tr = document.createElement('tr');
         var td = document.createElement('td');
+        var fieldset = _createFieldset('Export Options');
+        td.appendChild(fieldset);
+        tr.appendChild(td);
+        maintable.appendChild(tr);
+
+        var table = document.createElement('table');
+
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        _addHeader(td, 'Export these ratings only:');
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        td.setAttribute('align', 'left');
+        td.setAttribute('style', 'color: #fff');
+        _addCheckbox(td, 'rating5', '5 Stars', true);
+        _addCheckbox(td, 'rating4', '4 Stars', true);
+        _addCheckbox(td, 'rating3', '3 Stars', true);
+        _addCheckbox(td, 'rating2', '2 Stars', true);
+        _addCheckbox(td, 'rating1', '1 Star', true);
+        _addCheckbox(td, 'rating0', 'Not Interested', true);
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        td.appendChild(document.createElement('br'));
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        _addHeader(td, 'Export these columns only:');
+        tr.appendChild(td);
+        table.appendChild(tr);
+
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        td.setAttribute('align', 'left');
+        td.setAttribute('style', 'color: #fff');
+        _addCheckbox(td, 'col_id', 'ID', true);
+        _addCheckbox(td, 'col_title', 'Title', true);
+        _addCheckbox(td, 'col_year', 'Year', true);
+        _addCheckbox(td, 'col_mpaa', 'MPAA', true);
+        _addCheckbox(td, 'col_genre', 'Genre', true);
+        _addCheckbox(td, 'col_rating', 'Rating', true);
+        _addCheckbox(td, 'col_imdb_id', 'IMDB ID', false,
+                _imdbColOptionsChanged);
+        _addCheckbox(td, 'col_imdb_title', 'IMDB Title', false,
+                _imdbColOptionsChanged);
+        tr.appendChild(td);
+        table.appendChild(tr);
+        fieldset.appendChild(table);
+
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        td.appendChild(document.createElement('br'));
+        tr.appendChild(td);
+        maintable.appendChild(tr);
+
+        fieldset = _createFieldset('IMDB Options');
+        tr = document.createElement('tr');
+        td = document.createElement('td');
+        td.appendChild(fieldset);
+        tr.appendChild(td);
+        maintable.appendChild(tr);
+
+        table = document.createElement('table');
+        tr = document.createElement('tr');
+        td = document.createElement('td');
         td.setAttribute('align', 'left');
         td.setAttribute('valign', 'top');
         td.appendChild(cGetImdbData);
         tr.appendChild(td);
         td = document.createElement('td');
+        td.setAttribute('colspan', '2');
         td.setAttribute('align', 'left');
         td.setAttribute('valign', 'top');
         td.setAttribute('style', 'color: #fff');
@@ -214,6 +320,8 @@ var singleton = (function() {
         table.appendChild(tr);
 
         tr = document.createElement('tr');
+        td = document.createElement('td');
+        tr.appendChild(td);
         td = document.createElement('td');
         td.setAttribute('align', 'left');
         td.setAttribute('valign', 'top');
@@ -236,7 +344,7 @@ var singleton = (function() {
                 + 'option.'));
         td.appendChild(document.createElement('br'));
         td.appendChild(document.createTextNode(
-                'If you do use this option, double-check afterwards that '
+                'If you use this option, double-check afterwards that '
                 + 'the'));
         td.appendChild(document.createElement('br'));
         td.appendChild(document.createTextNode(
@@ -244,23 +352,72 @@ var singleton = (function() {
         tr.appendChild(td);
         table.appendChild(tr);
 
-        gui.appendChild(table);
+        fieldset.appendChild(table);
+
+        gui.appendChild(maintable);
         gui.appendChild(document.createElement('br'));
         gui.appendChild(bStart);
         gui.appendChild(bStop);
         gui.appendChild(document.createElement('br'));
-        gui.appendChild(document.createElement('br'));
-        var span = document.createElement('span');
-        span.setAttribute('style', 'font-size: larger');
-        span.appendChild(document.createTextNode(
+        var p = document.createElement('p');
+        p.setAttribute('style', 'font-size: larger');
+        p.appendChild(document.createTextNode(
                 'Script output (columns are tab-separated):'));
-        gui.appendChild(span);
-        gui.appendChild(document.createElement('br'));
+        gui.appendChild(p);
         gui.appendChild(tOutput);
         gui.appendChild(document.createElement('br'));
         gui.appendChild(document.createElement('br'));
 
         return gui;
+    }
+
+    function _getImdbDataChanged(changeColumnOptions) { 
+        var radio = document.getElementById('getImdbData');
+        var value = radio.checked;
+
+        if (changeColumnOptions !== false) {
+            // Keep IMDB columns in sync.
+            radio = document.getElementById('col_imdb_id');
+            radio.checked = value;
+            radio = document.getElementById('col_imdb_title');
+            radio.checked = value;
+        }
+
+        if (!value) {
+            // Also uncheck child radio inputs.
+            radio = document.getElementById('tryAkaMatch');
+            radio.checked = false;
+        }
+    }
+
+    function _tryAkaMatchChanged() {
+        var radio = document.getElementById('tryAkaMatch');
+        if (radio.checked) {
+            // Also check parent radio inputs.
+            radio = document.getElementById('getImdbData');
+            radio.checked = true;
+
+            var opt1 = document.getElementById('col_imdb_id');
+            var opt2 = document.getElementById('col_imdb_title');
+            if (opt1.checked || opt2.checked) {
+                _getImdbDataChanged(false);   // Don't change column options.
+            } else {
+                _getImdbDataChanged();
+            }
+        }
+    }
+
+    function _imdbColOptionsChanged() {
+        var opt1 = document.getElementById('col_imdb_id');
+        var opt2 = document.getElementById('col_imdb_title');
+        var radio = document.getElementById('getImdbData');
+        if (opt1.checked || opt2.checked) {
+            radio.checked = true;
+            _getImdbDataChanged(false);   // Don't change column options.
+        } else if (!opt1.checked && !opt2.checked) {
+            radio.checked = false;
+            _getImdbDataChanged(false);   // Don't change column options.
+        }
     }
 
     function _assertScriptIsRunnable() {
@@ -273,6 +430,13 @@ var singleton = (function() {
     }
 
     function _captureStartState() {
+        _imdbQueue = [];
+        _imdbQueueIndex = 0;
+        _totalPages = 0;
+        _totalRatings = 0;
+        _stop = false;
+        _timer = null;
+
         _startTime = (new Date()).getTime();
 
         // Get checkbox options.
@@ -288,14 +452,14 @@ var singleton = (function() {
 
         // Write out column titles.
         _saveRating({
-                'id': 'id',
-                'title': 'title',
-                'year': 'year',
-                'mpaa': 'mpaa',
-                'genre': 'genre',
-                'rating': 'rating',
-                'imdb_id': 'imdb_id',
-                'imdb_title': 'imdb_title'
+                'id': 'ID',
+                'title': 'Title',
+                'year': 'Year',
+                'mpaa': 'MPAA',
+                'genre': 'Genre',
+                'rating': 'Rating',
+                'imdb_id': 'IMDB ID',
+                'imdb_title': 'IMDB Title'
         });
     }
 
@@ -346,7 +510,8 @@ var singleton = (function() {
         // for the special characters that appear in regular expressions.
         var unsafe = "\\^.$|()[]*+?{}";
         for (var ii = 0; ii < unsafe.length; ii++) {
-            ss = ss.replace(new RegExp("\\" + unsafe.charAt(ii), "g"), "\\" + unsafe.charAt(ii)); 
+            ss = ss.replace(new RegExp("\\" + unsafe.charAt(ii), "g"),
+                    "\\" + unsafe.charAt(ii)); 
         }
         return ss;
     }
@@ -367,7 +532,6 @@ var singleton = (function() {
         var url = 'http://www.netflix.com/MoviesYouveSeen?' +
                 'pageNum=' + parseInt(pagenum, 10);
 
-        //_addOutput('Fetch:' + url);
         GM_xmlhttpRequest({
             'method': 'GET',
             'url': url,
@@ -375,6 +539,48 @@ var singleton = (function() {
                 _parseRatingsPage(pagenum, xhr.responseText);
             }
         });
+    }
+
+    function _stopEarly(rating) {
+        var result = true;
+
+        // Include current rating in test.
+        do {
+            if (document.getElementById('rating' + rating).checked) {
+                result = false;
+            }
+        } while (--rating >= 0);
+
+        return result;
+    }
+
+    function _cleanDetail(detail) {
+        if (!document.getElementById('col_id').checked) {
+            delete detail.id;
+        }
+        if (!document.getElementById('col_title').checked) {
+            delete detail.title;
+        }
+        if (!document.getElementById('col_year').checked) {
+            delete detail.year;
+        }
+        if (!document.getElementById('col_mpaa').checked) {
+            delete detail.mpaa;
+        }
+        if (!document.getElementById('col_genre').checked) {
+            delete detail.genre;
+        }
+        if (!document.getElementById('col_rating').checked) {
+            delete detail.rating;
+        }
+        if (!document.getElementById('col_imdb_id').checked) {
+            delete detail.imdb_id;
+        }
+        if (!document.getElementById('col_imdb_title').checked) {
+            delete detail.imdb_title;
+        }
+
+        return detail;
     }
 
     function _parseRatingsPage(num, text) {
@@ -385,18 +591,26 @@ var singleton = (function() {
         }
 
         _totalPages++;
+        var seenOne = false;
+        var stopEarly = false;
 
-        // Here's the PHP code to find all movie info on a page:
-        //$order   = array("\r\n", "\n", "\r");
-        //$content = str_replace($order, "", $content);
-        //$regex = '|movieid=(.*?)&.*?"list-title"><a.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?"list-mpaa">(.*?)<.*?"list-genre">(.*?)<.*?stars.*?_(\d+?)\.gif|gi';
-        //preg_match_all($regex, $content, $matches);
-
-        // Here's the JavaScript version, used by this Greasemonkey script:
-        // Note: multiline does not support regex spanning multiple lines...
-        //       so, added "(?:.*?\n)*?" before the ".*?stars" part
+        // JavaScript does not support regex spanning multiple lines...
+        // So, added "(?:.*?\n)*?" before the ".*?stars" part.
         var regex = /"list-title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?"list-mpaa">(.*?)<.*?"list-genre">(.*?)<(?:.*?\n)*?.*?stars.*?_(\d+?)\.gif/gim;
         while (regex.test(text)) {
+           seenOne = true;
+
+            // TODO: account for 1/2 star ratings.
+            var rating = Math.floor(RegExp.$6 / 10);
+
+            // If no other ratings need to be exported, stop early.
+            if (_stopEarly(rating)) {
+                stopEarly = true;
+                break;
+            }
+            if (!document.getElementById('rating' + rating).checked) {
+                continue;
+            }
             _totalRatings++;
 
             var detail = {
@@ -408,19 +622,19 @@ var singleton = (function() {
                 'rating': RegExp.$6 / 10
             };
 
-            //_addOutput('Netflix: '+detail.id+'\t'+detail.title+'\t'
-            //        +detail.year+'\t'+detail.mpaa+'\t'+detail.genre+'\t'
-            //        +detail.rating);
-
             if (_GET_IMDB_DATA) {
                 // Make IMDB calls after visiting all ratings pages.
+
+                // Save memory by only storing values for columns of interest.
+                detail = _cleanDetail(detail);
+
                 _imdbQueue.push(detail);
             } else {
                 _saveRating(detail);
             }
         }
 
-        if (0 === _totalRatings) {
+        if (!seenOne && _totalRatings === 0) {
            // Either user has no ratings at all,
            // or user has not enabled the "accept third-party cookies" setting.
            if (text.match(/Once you've enabled cookies, /)) {
@@ -434,7 +648,7 @@ var singleton = (function() {
            return;
         }
 
-        if (text.match(/paginationLink-next/)) {
+        if (!stopEarly && text.match(/paginationLink-next/)) {
             // Next page.
             var delayed = function() {
                 _getRatingsPage(num + 1);
@@ -464,7 +678,6 @@ var singleton = (function() {
         var url = 'http://us.imdb.com/find?type=substring&q=' +
                 encodeURI(title) + '&sort=smart;tt=1';
 
-        //_addOutput(logPrefix+': ' + url);
         GM_xmlhttpRequest({
             'method': 'GET',
             'url': url,
@@ -517,16 +730,12 @@ var singleton = (function() {
             detail.imdb_id = (1 == idIdx ? RegExp.$1 : RegExp.$2);
             detail.imdb_title = (1 == idIdx ? RegExp.$2 : RegExp.$1);
         } else {
-            //_addOutput('Couldn\'t get IMDB id for '+detail.id+':'
-            //        +title+':'+detail.year);
-
             // Titles like "2001: A Space Odyssey" are correctly resolved,
             // but titles like "Blade Runner: The Final Cut" are not.
             // Give those that fail another chance and try it without the :*.
             var idx = title.lastIndexOf(':');
             if (idx >= 0) {
                 success = false;
-                //_addOutput('Trying again with title = '+detail.imdb_title);
     
                 detail.imdb_title = detail.title.substring(0, idx);
                 var delayed = function() { 
@@ -561,10 +770,6 @@ var singleton = (function() {
         }
 
         if (success) {
-            //_addOutput('IMDB: '+detail.id+'\t'+detail.title+'\t'
-            //        +detail.year+'\t'+detail.mpaa+'\t'+detail.genre+'\t'
-            //        +detail.rating+'\t'+detail.imdb_id+'\t'+detail.imdb_title);
-
             _saveRating(detail);
 
             // Continue with more IMDB work.
@@ -573,15 +778,34 @@ var singleton = (function() {
     }
 
     function _saveRating(detail) {
-        _addOutput('' +
-                detail.id + '\t' +
-                detail.title + '\t' +
-                detail.year + '\t' +
-                detail.mpaa + '\t' +
-                detail.genre + '\t' +
-                detail.rating + '\t' +
-                (detail.imdb_id ? detail.imdb_id : '') + '\t' +
-                (detail.imdb_title ? detail.imdb_title : ''));
+        var result = '';
+
+        if (document.getElementById('col_id').checked) {
+            result += detail.id + '\t';
+        }
+        if (document.getElementById('col_title').checked) {
+            result += detail.title + '\t';
+        }
+        if (document.getElementById('col_year').checked) {
+            result += detail.year + '\t';
+        }
+        if (document.getElementById('col_mpaa').checked) {
+            result += detail.mpaa + '\t';
+        }
+        if (document.getElementById('col_genre').checked) {
+            result += detail.genre + '\t';
+        }
+        if (document.getElementById('col_rating').checked) {
+            result += detail.rating + '\t';
+        }
+        if (document.getElementById('col_imdb_id').checked) {
+            result += (detail.imdb_id ? detail.imdb_id : '') + '\t';
+        }
+        if (document.getElementById('col_imdb_title').checked) {
+            result += (detail.imdb_title ? detail.imdb_title : '') + '\t';
+        }
+
+        _addOutput(result);
     }
 
 
@@ -655,6 +879,7 @@ var singleton = (function() {
 // End singleton pattern.
 
 // Run this script.
-singleton.init();
+NetflixMovieExtractor.init();
 
 ///////////////////////////////////////////////////////////////////////////////
+
