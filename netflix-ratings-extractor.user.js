@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.4, 2009-03-30
+// Version 1.5, 2009-04-05
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.4
-// @description    v1.4: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.5
+// @description    v1.5: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // ==/UserScript==
 //
@@ -26,6 +26,9 @@
 // extract the name, rating, etc, and try to get the IMDB ID for it.
 // (To run the script, navigate to: Movies You'll Love -> Movies You've Rated,
 // or click on the new "Your Ratings" tab at the top of the page.)
+// A Netflix movie URL can be reconstructed like so:
+// 
+//     http://www.netflix.com/Movie/<netflix_id>/
 //
 // If IMDB lookup is enabled, the IMDB title and year column will only be
 // outputted if they differ from Netflix's title and year.
@@ -75,8 +78,9 @@
 // Satisfy JSLint.
 /*global alert, clearTimeout, document, GM_registerMenuCommand, GM_xmlhttpRequest, setTimeout */
 
-// Singleton pattern.
-var NetflixMovieRatingsExtractor = (function () {
+// To avoid introducing global variables, define the entire script as a 
+// self-invoking function following the singleton pattern.
+(function () {
     //
     // Private variables
     //
@@ -101,18 +105,32 @@ var NetflixMovieRatingsExtractor = (function () {
     // Set it to false to only get the Netflix data.
     var GET_IMDB_DATA = false;
 
-    // TRY_AKA_MATCH
-    // Set this to true to try and match movie aliases in case of conflict.
-    // Note: this could lead to an incorrect IMDB id match, so it is
-    //       recommended that only users with lots of foreign movie titles
-    //       turn this on.  (And double-check afterwards that the IMDB movie
-    //       IDs were correctly identified.)
-    var TRY_AKA_MATCH = false;
+    // BEST_EFFORT_MATCH
+    // Set this to true to use "best effort" matching algorithms if the exact
+    // title matching fails to find the IMDB ID.
+    // Note: this could lead to an incorrect IMDB id match, so double-check
+    //       afterwards that the IMDB movie IDs were correctly identified.
+    var BEST_EFFORT_MATCH = true;
+    var SHOW_BEST_EFFORT_MATCH_OPTION = false;
+    // Note: if there are ever issues with the "best effort" matching,
+    //       change these flags so that a checkbox appears that the user
+    //       must explicitly enable to get "best" effort" matching.
 
     // Title match algorithms for IMDB lookups.
-    var ALGO_NETFLIX_TITLE = 0;
-    var ALGO_NETFLIX_TITLE_SUBSTRING = 1;
-    var ALGO_NETFLIX_ALT_TITLE = 2;
+    var ALGO_NETFLIX_ALT_TITLE = 0;
+    var ALGO_NETFLIX_ALT_TITLE_AKA = 1;
+    var ALGO_NETFLIX_ALT_TITLE_FIRST_PART = 2;
+    var ALGO_NETFLIX_ALT_TITLE_FIRST_PART_AKA = 3;
+    var ALGO_NETFLIX_ALT_TITLE_SECOND_PART = 4;
+    var ALGO_NETFLIX_ALT_TITLE_SECOND_PART_AKA = 5;
+    var ALGO_NETFLIX_TITLE = 6;
+    var ALGO_NETFLIX_TITLE_AKA = 7;
+    var ALGO_NETFLIX_TITLE_FIRST_PART = 8;
+    var ALGO_NETFLIX_TITLE_FIRST_PART_AKA = 9;
+    var ALGO_NETFLIX_TITLE_SECOND_PART = 10;
+    var ALGO_NETFLIX_TITLE_SECOND_PART_AKA = 11;
+    var ALGO_NETFLIX_TITLE_SUBSTRING = 12;
+    var ALGO_NETFLIX_TITLE_SUBSTRING_AKA = 13;
 
     //
     // Private functions
@@ -200,8 +218,10 @@ var NetflixMovieRatingsExtractor = (function () {
 
         // Get checkbox options.
         GET_IMDB_DATA = document.getElementById('getImdbData').checked;
-        // TODO: when AKA matching is enabled, uncomment the next line.
-        //TRY_AKA_MATCH = document.getElementById('tryAkaMatch').checked;
+        if (SHOW_BEST_EFFORT_MATCH_OPTION) {
+            BEST_EFFORT_MATCH = document.getElementById(
+                    'bestEffortMatch').checked;
+        }
 
         if (GET_IMDB_DATA) {
             // Let the user know the output will not come immediately.
@@ -335,14 +355,6 @@ var NetflixMovieRatingsExtractor = (function () {
 
 
 
-    function buildNotSignedInGui() {
-        var gui = document.createElement('p');
-        gui.setAttribute('style', 'font-size: larger');
-        gui.appendChild(document.createTextNode(
-                'Please log in to use this script.'));
-        return gui;
-    }
-
     function createFieldset(text) {
         var fieldset = document.createElement('fieldset');
         var legend = document.createElement('legend');
@@ -397,11 +409,12 @@ var NetflixMovieRatingsExtractor = (function () {
                 radio = document.getElementById(ids[ii]);
                 radio.checked = true;
             }
-        // TODO: when AKA matching is enabled, uncomment this else block.
-        //} else {
-        //    // Also uncheck child radio inputs.
-        //    radio = document.getElementById('tryAkaMatch');
-        //    radio.checked = false;
+        } else {
+            // Also uncheck child radio inputs.
+            if (SHOW_BEST_EFFORT_MATCH_OPTION) {
+                radio = document.getElementById('bestEffortMatch');
+                radio.checked = false;
+            }
         }
     }
 
@@ -420,8 +433,8 @@ var NetflixMovieRatingsExtractor = (function () {
         return result;
     }
 
-    function tryAkaMatchChanged() {
-        var radio = document.getElementById('tryAkaMatch');
+    function bestEffortMatchChanged() {
+        var radio = document.getElementById('bestEffortMatch');
         if (radio.checked) {
             // Also check parent radio inputs.
             radio = document.getElementById('getImdbData');
@@ -494,14 +507,17 @@ var NetflixMovieRatingsExtractor = (function () {
         }
         cGetImdbData.addEventListener('change', getImdbDataChanged, true);
 
-        // Create TRY_AKA_MATCH option.
-        var cTryAkaMatch = document.createElement('input');
-        cTryAkaMatch.setAttribute('type', 'checkbox');
-        cTryAkaMatch.setAttribute('id', 'tryAkaMatch');
-        if (TRY_AKA_MATCH) {
-            cTryAkaMatch.setAttribute('checked', 'checked');
+        if (SHOW_BEST_EFFORT_MATCH_OPTION) {
+            // Create BEST_EFFORT_MATCH option.
+            var cBestEffortMatch = document.createElement('input');
+            cBestEffortMatch.setAttribute('type', 'checkbox');
+            cBestEffortMatch.setAttribute('id', 'bestEffortMatch');
+            if (BEST_EFFORT_MATCH) {
+                cBestEffortMatch.setAttribute('checked', 'checked');
+            }
+            cBestEffortMatch.addEventListener('change', bestEffortMatchChanged,
+                    true);
         }
-        cTryAkaMatch.addEventListener('change', tryAkaMatchChanged, true);
 
         // Create output area.
         var tOutput = document.createElement('textarea');
@@ -609,49 +625,80 @@ var NetflixMovieRatingsExtractor = (function () {
         label.appendChild(document.createTextNode(
                 'Leave this box unchecked to only get the Netflix data.'));
         td.appendChild(label);
-        // TODO: when AKA matching is enabled, uncomment the next two lines.
-        //td.appendChild(document.createElement('br'));
-        //td.appendChild(document.createElement('br'));
+        if (SHOW_BEST_EFFORT_MATCH_OPTION) {
+            td.appendChild(document.createElement('br'));
+            td.appendChild(document.createElement('br'));
+        }
         tr.appendChild(td);
         table.appendChild(tr);
 
-        // TODO: once AKA matching is perfected, enable this option.
-        //       until then, don't use it.
-        //tr = document.createElement('tr');
-        //td = document.createElement('td');
-        //tr.appendChild(td);
-        //td = document.createElement('td');
-        //td.setAttribute('align', 'left');
-        //td.setAttribute('valign', 'top');
-        //td.appendChild(cTryAkaMatch);
-        //tr.appendChild(td);
-        //td = document.createElement('td');
-        //td.setAttribute('align', 'left');
-        //td.setAttribute('valign', 'top');
-        //td.setAttribute('style', 'color: #fff');
-        //label = document.createElement('label');
-        //label.setAttribute('for', cTryAkaMatch.id);
-        //label.appendChild(document.createTextNode(
-        //        'Check this box to try and match IMDB movie aliases in case ' +
-        //        'of conflict.'));
-        //td.appendChild(label);
-        //td.appendChild(document.createElement('br'));
-        //label = document.createElement('label');
-        //label.setAttribute('for', cTryAkaMatch.id);
-        //label.appendChild(document.createTextNode(
-        //        '(This could lead to an incorrect IMDB id match, so only ' +
-        //        'users with lots of foreign movie titles should use this ' +
-        //        'option.'));
-        //td.appendChild(label);
-        //td.appendChild(document.createElement('br'));
-        //label = document.createElement('label');
-        //label.setAttribute('for', cTryAkaMatch.id);
-        //label.appendChild(document.createTextNode(
-        //        'If you use this option, double-check afterwards that the ' +
-        //        'IMDB movie IDs were correctly identified.)'));
-        //td.appendChild(label);
-        //tr.appendChild(td);
-        //table.appendChild(tr);
+        if (SHOW_BEST_EFFORT_MATCH_OPTION) {
+            tr = document.createElement('tr');
+            td = document.createElement('td');
+            tr.appendChild(td);
+            td = document.createElement('td');
+            td.setAttribute('align', 'left');
+            td.setAttribute('valign', 'top');
+            td.appendChild(cBestEffortMatch);
+            tr.appendChild(td);
+            td = document.createElement('td');
+            td.setAttribute('align', 'left');
+            td.setAttribute('valign', 'top');
+            td.setAttribute('style', 'color: #fff');
+            label = document.createElement('label');
+            label.setAttribute('for', cBestEffortMatch.id);
+            label.appendChild(document.createTextNode(
+                    'Check this box to enable "best effort" title matching ' +
+                    'if there is no exact title match.'));
+            td.appendChild(label);
+            td.appendChild(document.createElement('br'));
+            label = document.createElement('label');
+            label.setAttribute('for', cBestEffortMatch.id);
+            label.appendChild(document.createTextNode(
+                    'This option will try to find IMDB data by using ' +
+                    'non-exact title match algorithms:'));
+            td.appendChild(label);
+            td.appendChild(document.createElement('br'));
+            label = document.createElement('label');
+            label.setAttribute('for', cBestEffortMatch.id);
+            label.appendChild(document.createTextNode(
+                    '- Try to find a match in IMDB\'s AKA listings using ' +
+                    'title and year.'));
+            td.appendChild(label);
+            td.appendChild(document.createElement('br'));
+            label = document.createElement('label');
+            label.setAttribute('for', cBestEffortMatch.id);
+            label.appendChild(document.createTextNode(
+                    '- If titles like "Problem Child / Problem Child 2" ' +
+                    'don\'t match, try each of the two parts as title.'));
+            td.appendChild(label);
+            td.appendChild(document.createElement('br'));
+            label = document.createElement('label');
+            label.setAttribute('for', cBestEffortMatch.id);
+            label.appendChild(document.createTextNode(
+                    '- If titles like "Alien: Collector\'s Edition" don\'t ' +
+                    'match, try just "Alien", i.e. use everything until the ' +
+                    'last colon as title.'));
+            td.appendChild(label);
+            td.appendChild(document.createElement('br'));
+            label = document.createElement('label');
+            label.setAttribute('for', cBestEffortMatch.id);
+            label.appendChild(document.createTextNode(
+                    'This works pretty well, but an incorrect match may ' +
+                    'result, so double-check afterwards that the IMDB movie ' +
+                    'IDs were correctly identified.'));
+            td.appendChild(label);
+            td.appendChild(document.createElement('br'));
+            label = document.createElement('label');
+            label.setAttribute('for', cBestEffortMatch.id);
+            label.appendChild(document.createTextNode(
+                    'To only get exact matches and no possible mistakes, ' +
+                    'leave this box unchecked.'));
+            td.appendChild(label);
+            td.appendChild(document.createElement('br'));
+            tr.appendChild(td);
+            table.appendChild(tr);
+        }
 
         fieldset.appendChild(table);
 
@@ -684,11 +731,11 @@ var NetflixMovieRatingsExtractor = (function () {
     function buildGui() {
         // Add options to the Tools->Greasemonkey->User Script Commands menu.
         GM_registerMenuCommand(
-                'Start Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)',
-                startScript);
+                'Start Netflix Movie Ratings Extractor (Includes IMDB Movie ' +
+                'Data Lookup)', startScript);
         GM_registerMenuCommand(
-                'Stop Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)',
-                stopScript);
+                'Stop Netflix Movie Ratings Extractor (Includes IMDB Movie ' +
+                'Data Lookup)', stopScript);
 
         // Create GUI container.
         var gui = document.createElement('div');
@@ -699,7 +746,8 @@ var NetflixMovieRatingsExtractor = (function () {
         var pElt = document.createElement('p');
         pElt.setAttribute('style', 'font-size: larger; font-weight: bold');
         pElt.appendChild(document.createTextNode(
-                'Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)'));
+                'Netflix Movie Ratings Extractor (Includes IMDB Movie Data ' +
+                'Lookup)'));
         gui.appendChild(pElt);
 
         if (document.getElementById('profilesmenu')) {
@@ -737,7 +785,7 @@ var NetflixMovieRatingsExtractor = (function () {
 
         // The articles are used "as-is", so there must be a space after
         // each one in most cases.
-        var articles = ["EL ", "LA ", "LE ", "IL ", "L'"];
+        var articles = ["EL ", "LA ", "LE ", "LES ", "IL ", "L'"];
         for (var aa = 0; aa < articles.length; aa++) {
             var article = articles[aa].toUpperCase();
             if (0 === title.toUpperCase().indexOf(article)) {
@@ -751,12 +799,13 @@ var NetflixMovieRatingsExtractor = (function () {
         return title;
     }
 
-    function getTitleUsedForImdbSearch(detail, titleAlgorithm) {
+    function getTitleUsedForImdbSearch(detail, algo) {
         var result;
 
-        if (ALGO_NETFLIX_TITLE === titleAlgorithm) {
+        if (ALGO_NETFLIX_TITLE === algo || ALGO_NETFLIX_TITLE_AKA === algo) {
             result = detail.title;
-        } else if (ALGO_NETFLIX_ALT_TITLE === titleAlgorithm) {
+        } else if (ALGO_NETFLIX_ALT_TITLE === algo ||
+                ALGO_NETFLIX_ALT_TITLE_AKA === algo) {
             result = detail.alt;
         } else {
             // Another try.
@@ -766,14 +815,103 @@ var NetflixMovieRatingsExtractor = (function () {
         return result;
     }
 
-    function getImdbId(detail, titleAlgorithm) {
+    function getNextImdbTitleMatchAlgorithm(detail, algo) {
+        var result;
+
+        if (undefined === algo) {
+            // Figure out starting algorithm.
+            if (detail.alt) {
+                // Especially for foreign titles, starting with the 
+                // alternate title gives the best chance for a match.
+                result = ALGO_NETFLIX_ALT_TITLE;
+            } else {
+                result = ALGO_NETFLIX_TITLE;
+            }
+        } else if (ALGO_NETFLIX_ALT_TITLE === algo) {
+            if (BEST_EFFORT_MATCH) {
+                // AKA match works on title search output, so do that next. 
+                result = ALGO_NETFLIX_ALT_TITLE_AKA;
+            } else {
+                // Done with alternate title search, move on to title search.
+                result = ALGO_NETFLIX_TITLE;
+            }
+        } else if (ALGO_NETFLIX_ALT_TITLE_AKA === algo) {
+            // Already in "best effort" mode.
+            if (detail.alt.indexOf(' / ') > 0) {   // Note the spaces!
+                // The alt title consist of two parts; use first part.
+                result = ALGO_NETFLIX_ALT_TITLE_FIRST_PART;
+            } else {
+                // Done with alternate title search, move on to title search.
+                result = ALGO_NETFLIX_TITLE;
+            }
+        } else if (ALGO_NETFLIX_ALT_TITLE_FIRST_PART === algo) {
+            // Already in "best effort" mode.
+            result = ALGO_NETFLIX_ALT_TITLE_FIRST_PART_AKA;
+        } else if (ALGO_NETFLIX_ALT_TITLE_FIRST_PART_AKA === algo) {
+            // Already in "best effort" mode.
+            // The alt title consist of two parts; use second part.
+            result = ALGO_NETFLIX_ALT_TITLE_SECOND_PART;
+        } else if (ALGO_NETFLIX_ALT_TITLE_SECOND_PART === algo) {
+            // Already in "best effort" mode.
+            result = ALGO_NETFLIX_ALT_TITLE_SECOND_PART_AKA;
+        } else if (ALGO_NETFLIX_ALT_TITLE_SECOND_PART_AKA === algo) {
+            // Done with alternate title search, move on to title search.
+            result = ALGO_NETFLIX_TITLE;
+        } else if (ALGO_NETFLIX_TITLE === algo) {
+            if (BEST_EFFORT_MATCH) {
+                // AKA match works on title search output, so do that next. 
+                result = ALGO_NETFLIX_TITLE_AKA;
+            } else { 
+                // No more algorithms.
+            }
+        } else if (ALGO_NETFLIX_TITLE_AKA === algo) {
+            // Already in "best effort" mode.
+            if (detail.title.indexOf(' / ') > 0) {   // Note the spaces!
+                // The title consist of two parts; use first part.
+                result = ALGO_NETFLIX_TITLE_FIRST_PART;
+            } else if (detail.title.lastIndexOf(':') > 0) {
+                result = ALGO_NETFLIX_TITLE_SUBSTRING;
+            } else {
+                // No more algorithms.
+            }
+        } else if (ALGO_NETFLIX_TITLE_FIRST_PART === algo) {
+            // Already in "best effort" mode.
+            result = ALGO_NETFLIX_TITLE_FIRST_PART_AKA;
+        } else if (ALGO_NETFLIX_TITLE_FIRST_PART_AKA === algo) {
+            // Already in "best effort" mode.
+            // The title consist of two parts; use second part.
+            result = ALGO_NETFLIX_TITLE_SECOND_PART;
+        } else if (ALGO_NETFLIX_TITLE_SECOND_PART === algo) {
+            // Already in "best effort" mode.
+            result = ALGO_NETFLIX_TITLE_SECOND_PART_AKA;
+        } else if (ALGO_NETFLIX_TITLE_SECOND_PART_AKA === algo) {
+            // Already in "best effort" mode.
+            if (detail.title.lastIndexOf(':') > 0) {
+                result = ALGO_NETFLIX_TITLE_SUBSTRING;
+            } else {
+                // No more algorithms.
+            }
+        } else if (ALGO_NETFLIX_TITLE_SUBSTRING === algo) {
+            // Already in "best effort" mode.
+            result = ALGO_NETFLIX_TITLE_SUBSTRING_AKA;
+        } else if (ALGO_NETFLIX_TITLE_SUBSTRING_AKA === algo) {
+            // No more algorithms.
+        } else {
+            alert('Internal error: unknown next algorithm.\n\n' +
+                    'algo = ' + algo + ', detail = ' + detail);
+        }
+
+        return result;
+    }
+
+    function getImdbId(detail, algo) {
         // As no queue is used for scraping the ratings pages,
         // need to check explicitly before going to next page.
         if (stop) {
             return;
         }
 
-        var title = getTitleUsedForImdbSearch(detail, titleAlgorithm);
+        var title = getTitleUsedForImdbSearch(detail, algo);
         title = imdbifyTitle(title);
         title = encodeURIComponent(title);
 
@@ -786,6 +924,7 @@ var NetflixMovieRatingsExtractor = (function () {
         // appear in movie titles, just replace it.
         // TODO: get to the bottom of this.
         title = title.replace(/%A9/g, '%E9');
+        title = title.replace(/%C3%AD/g, '%ED');
 
         var url = 'http://www.imdb.com/find?s=tt&q=' + title;
 
@@ -793,36 +932,24 @@ var NetflixMovieRatingsExtractor = (function () {
             'method': 'GET',
             'url': url,
             'onload': function (xhr) {
-                parseImdbPage(detail, titleAlgorithm, xhr.responseText);
+                parseImdbPage(detail, algo, xhr.responseText);
             }
         });
     }
 
-    function doImdbWork() {
-        if (imdbQueueIndex < imdbQueue.length) {
-            // Update progress.
-            updateProgress('Fetching IMDB IDs: ' +
-                    Math.floor(100 * imdbQueueIndex / imdbQueue.length) +
-                    '% completed');
-
-            // Do more work.
-            var work = imdbQueue[imdbQueueIndex];
-            imdbQueueIndex++;
-
-            var delayed = function () { 
-                var algo = ALGO_NETFLIX_TITLE;
-                if (work.alt) {
-                    // Especially for foreign titles, starting with the 
-                    // alternate title gives the best chance for a match.
-                    algo = ALGO_NETFLIX_ALT_TITLE;
-                }
-                getImdbId(work, algo);
-            };
-            timer = setTimeout(delayed, XHR_REQUEST_DELAY);
-        } else {
-            // Done.
-            stopWorking(false, false);
+    function processSuccessfulImdbTitleMatch(detail) {
+        // Only output IMDB title if it's different from Netflix's.
+        if (detail.title === detail.imdb_title) {
+            delete(detail.imdb_title);
         }
+        // Only output IMDB year if it's different from Netflix's.
+        if (detail.year === detail.imdb_year) {
+            delete(detail.imdb_year);
+        }
+        saveRating(detail);
+
+        // Continue with more IMDB work.
+        doImdbWork();
     }
 
     function regexEscape(ss) {
@@ -835,6 +962,227 @@ var NetflixMovieRatingsExtractor = (function () {
                     "\\" + unsafe.charAt(ii)); 
         }
         return ss;
+    }
+
+    function runRealMatchAlgorithm(detail, text, regex_english, regex_rest) {
+        var result = false;
+
+        // Create a DOM node that contains all text.
+        // THIS SEEMS TO RE-INTRODUCE HTML ENTITIES!  BE SURE TO HANDLE THEM.
+        var elt = document.createElement('div');
+        elt.innerHTML = text;
+
+        var elts = elt.getElementsByTagName('td');
+        for (var ee = 0; ee < elts.length; ee++) {
+            if (/^(<img src="\/images\/b.gif" width="1" height="6"><br>)?\d+\.$/.test(elts[ee].innerHTML) ||
+                    /^(<img src="\/images\/b.gif" height="6" width="1"><br>)?\d+\.$/.test(elts[ee].innerHTML)) {
+                // Next td elt contains movie title, year and AKAs.
+                if (ee + 1 === elts.length) { 
+                    // No next td elt.
+                    continue;
+                }
+
+                // Handle HTML entities again... 
+                text = html_entity_decode(elts[ee + 1].innerHTML);
+                
+                if (regex_english.test(text) &&
+                        !RegExp.$4) {   // Make sure it's no video game.
+                    detail.imdb_id = RegExp.$1;
+                    detail.imdb_title = RegExp.$2;
+                    detail.imdb_year = RegExp.$3;
+
+                    result = true;
+                    break;
+                }
+
+                if (undefined !== regex_rest && regex_rest.test(text) &&
+                        !RegExp.$4) {   // Make sure it's no video game.
+                    detail.imdb_id = RegExp.$1;
+                    detail.imdb_title = RegExp.$2;
+                    detail.imdb_year = RegExp.$3;
+ 
+                    result = true;
+                    break;
+                }
+
+                // Already processed next element.
+                ee++;
+            }
+        }
+
+        return result;
+    }
+
+    function runTitleMatchAlgorithm(detail, algo, text) {
+        // Find first occurrence of movie title + year
+        // Return first match only, so don't use g flag.
+        // Don't include closing ) in year to match (1998/I) as well.
+        // First occurrence would use imdbified title.
+
+        // NOTE: THAT ALL HTML ENTITIES HAVE BEEN CONVERTED TO REGULAR
+        // CHARACTERS, SO DON'T USE HTML ENTITIES IN THE REGEX BELOW,
+        // EVEN THOUGH THERE MAY BE HTML ENTITIES IN THE PAGE SOURCE!
+
+        var title = getTitleUsedForImdbSearch(detail, algo);
+
+        // Titles do NOT use imdbified title for English titles...
+        var esc_title_english = regexEscape(title);
+        var regex_english = new RegExp("<a href=\"/title/(tt\\d+)/\".*?>\"?(" + esc_title_english + ")\"?</a> \\((" + detail.year + ").*?\\) (\\(VG\\))?", "i");
+
+        // ...but titles DO use imdbified title for foreign titles.
+        var esc_title_rest = regexEscape(imdbifyTitle(title));
+        var regex_rest;
+        if (esc_title_english !== esc_title_rest) {
+            regex_rest = new RegExp("<a href=\"/title/(tt\\d+)/\".*?>\"?(" + esc_title_rest + ")\"?</a> \\((" + detail.year + ").*?\\) (\\(VG\\))?", "i");
+        }
+
+        return runRealMatchAlgorithm(detail, text, regex_english, regex_rest);
+    }
+
+    function runAkaMatchAlgorithm(detail, algo, text) {
+        // Another possibility is that the title is an alias, or AKA.
+        // This happens a lot with foreign films, e.g. "The Machinist"
+        // (which is listed under "El Maquinista").
+        // Solving this case is not easy:
+        // 1. At this point, we can't be sure of the title.
+        // 2. At this point, there are multiple results listed,
+        //    each with AKAs.
+        // 3. Matching AKAs and movie titles in the IMDB result page
+        //    is hard.
+
+        // NOTE: THAT ALL HTML ENTITIES HAVE BEEN CONVERTED TO REGULAR
+        // CHARACTERS, SO DON'T USE HTML ENTITIES IN THE REGEX BELOW,
+        // EVEN THOUGH THERE MAY BE HTML ENTITIES IN THE PAGE SOURCE!
+
+        var title = getTitleUsedForImdbSearch(detail, algo);
+
+        // AKA titles do NOT use imdbified title for English titles...
+        var esc_title_english = regexEscape(title);
+        var regex_english = new RegExp("<a href=\"/title/(tt\\d+)/\".*?>(.*?)</a> \\((" + detail.year + ").*?\\) (\\(VG\\))?.*?aka <em>\"" + esc_title_english + "\"", "im");
+
+        // ...but AKA titles DO use imdbified title for foreign titles.
+        var esc_title_rest = regexEscape(imdbifyTitle(title));
+        var regex_rest;
+        if (esc_title_english !== esc_title_rest) {
+            regex_rest = new RegExp("<a href=\"/title/(tt\\d+)/\".*?>(.*?)</a> \\((" + detail.year + ").*?\\) (\\(VG\\))?.*?aka <em>\"" + esc_title_rest + "\"", "im");
+        }
+
+        return runRealMatchAlgorithm(detail, text, regex_english, regex_rest);
+    }
+
+    function runNextImdbTitleMatchAlgorithm(detail, curAlgo, text) {
+        // Determine next IMDB title match algorithm.
+        var nextAlgo = getNextImdbTitleMatchAlgorithm(detail, curAlgo);
+
+        var matched = false, findNextAlgo = false, idx;
+
+        if (ALGO_NETFLIX_ALT_TITLE === nextAlgo) {
+            // Just do the search.
+        } else if (ALGO_NETFLIX_ALT_TITLE_AKA === nextAlgo) {
+            if (runAkaMatchAlgorithm(detail, nextAlgo, text)) {
+                matched = true;
+            } else {
+                findNextAlgo = true;
+            }
+        } else if (ALGO_NETFLIX_ALT_TITLE_FIRST_PART === nextAlgo) {
+            // Alternate title contains two different titles; try first one.
+            idx = detail.alt.indexOf(' / ');   // Don't use '/'!
+            detail.imdb_title = detail.alt.substring(0, idx);
+        } else if (ALGO_NETFLIX_ALT_TITLE_FIRST_PART_AKA === nextAlgo) {
+            if (runAkaMatchAlgorithm(detail, nextAlgo, text)) {
+                matched = true;
+            } else {
+                findNextAlgo = true;
+            }
+        } else if (ALGO_NETFLIX_ALT_TITLE_SECOND_PART === nextAlgo) {
+            // Alternate title contains two different titles; try second one.
+            idx = detail.alt.indexOf(' / ');   // Don't use '/'!
+            detail.imdb_title = detail.alt.substring(idx + 3);
+        } else if (ALGO_NETFLIX_ALT_TITLE_SECOND_PART_AKA === nextAlgo) {
+            if (runAkaMatchAlgorithm(detail, nextAlgo, text)) {
+                matched = true;
+            } else {
+                findNextAlgo = true;
+            }
+        } else if (ALGO_NETFLIX_TITLE === nextAlgo) {
+            // Just do the search.
+        } else if (ALGO_NETFLIX_TITLE_AKA === nextAlgo) {
+            if (runAkaMatchAlgorithm(detail, nextAlgo, text)) {
+                matched = true;
+            } else {
+                findNextAlgo = true;
+            }
+        } else if (ALGO_NETFLIX_TITLE_FIRST_PART === nextAlgo) {
+            // Title contains two different titles; try first one.
+            idx = detail.title.indexOf(' / ');   // Don't use '/'!
+            detail.imdb_title = detail.title.substring(0, idx);
+        } else if (ALGO_NETFLIX_TITLE_FIRST_PART_AKA === nextAlgo) {
+            if (runAkaMatchAlgorithm(detail, nextAlgo, text)) {
+                matched = true;
+            } else {
+                findNextAlgo = true;
+            }
+        } else if (ALGO_NETFLIX_TITLE_SECOND_PART === nextAlgo) {
+            // Title contains two different titles; try second one.
+            idx = detail.title.indexOf(' / ');   // Don't use '/'!
+            detail.imdb_title = detail.title.substring(idx + 3);
+        } else if (ALGO_NETFLIX_TITLE_SECOND_PART_AKA === nextAlgo) {
+            if (runAkaMatchAlgorithm(detail, nextAlgo, text)) {
+                matched = true;
+            } else {
+                findNextAlgo = true;
+            }
+        } else if (ALGO_NETFLIX_TITLE_SUBSTRING === nextAlgo) {
+            // Titles like "2001: A Space Odyssey" are correctly resolved,
+            // but titles like "Blade Runner: The Final Cut" are not.
+            // Give those that fail another chance; try it without the ":".
+            // But try only once, to avoid incorrect matches, e.g. for
+            // Lisa Lampanelli: Dirty Girl: No Protection.
+            idx = detail.title.lastIndexOf(':');   // Use Netflix title.
+            detail.imdb_title = detail.title.substring(0, idx);
+        } else if (ALGO_NETFLIX_TITLE_SUBSTRING_AKA === nextAlgo) {
+            if (runAkaMatchAlgorithm(detail, nextAlgo, text)) {
+                matched = true;
+            } else {
+                findNextAlgo = true;
+            }
+        } else {
+            // Undefined algo.  Keep IMDB data empty and continue.
+            detail.imdb_id = '';
+            detail.imdb_title = '';
+            detail.imdb_year = '';
+
+            // Treat as success, so that rating gets saved.
+            matched = true;
+        }
+
+        if (matched) {
+            processSuccessfulImdbTitleMatch(detail);
+        } else if (findNextAlgo) {
+            runNextImdbTitleMatchAlgorithm(detail, nextAlgo, text);
+        } else {
+            var delayed = function () { 
+                getImdbId(detail, nextAlgo);
+            };
+            timer = setTimeout(delayed, XHR_REQUEST_DELAY);
+        }
+    }
+
+    function doImdbWork() {
+        if (imdbQueueIndex < imdbQueue.length) {
+            // Update progress.
+            updateProgress('Fetching IMDB IDs: ' +
+                    Math.floor(100 * imdbQueueIndex / imdbQueue.length) +
+                    '% completed');
+
+            // Do more work.
+            var work = imdbQueue[imdbQueueIndex];
+            imdbQueueIndex++;
+            runNextImdbTitleMatchAlgorithm(work);
+        } else {
+            // Done.
+            stopWorking(false, false);
+        }
     }
 
 
@@ -985,7 +1333,7 @@ var NetflixMovieRatingsExtractor = (function () {
         }
     }
 
-    function parseImdbPage(detail, titleAlgorithm, text) {
+    function parseImdbPage(detail, algo, text) {
         // As no queue is used for scraping the ratings pages,
         // need to check explicitly before going to next page.
         if (stop) {
@@ -995,23 +1343,23 @@ var NetflixMovieRatingsExtractor = (function () {
         // Note: "text" can contain either the search results page or the
         // movie page itself.
 
-        var title, esc_title, delayed;
-        var regType = 1;
+        // For foreign movie titles like "Le Fabuleux Destin d'Amélie
+        // Poulain" special characters may be encoded as HTML entities,
+        // e.g. "é" -> "&#233;".  In JavaScript, it's hard to encode
+        // special characters as HTML entities, but decoding them is easy.
+        // So, let's do that here.
+        // Also, this helps make extracted strings readable for the user.
+        // NOTE: THE LINE BELOW CONVERTS ALL HTML ENTITIES TO REGULAR
+        // CHARACTERS SO THE REGEX BELOW SHOULD NOT CONTAIN ANY HTML ENTITIES!
+        text = html_entity_decode(text);
+
+        var success = false;
         var regex = new RegExp("<title>.*?Search.*?</title>", "m");
         if (regex.test(text)) {
             // Multiple search results found.
-
-            // Find first occurrence of movie title + year
-            // Return first match only, so don't use g flag.
-            // Don't include closing ) in year to match (1998/I) as well.
-            // First occurrence would use imdbified title.
-            title = getTitleUsedForImdbSearch(detail, titleAlgorithm);
-            esc_title = regexEscape(imdbifyTitle(title));
-
-            // NOTE: THAT ALL HTML ENTITIES WILL BE CONVERTED TO REGULAR
-            // CHARACTERS, SO DON'T USE HTML ENTITIES IN THE REGEX BELOW,
-            // EVEN THOUGH THERE MAY BE HTML ENTITIES IN THE PAGE SOURCE!
-            regex = new RegExp("<a href=\"/title/(tt\\d+)/\".*?>\"?(" + esc_title + ")\"?</a> \\((" + detail.year + ")", "i");
+            if (runTitleMatchAlgorithm(detail, algo, text)) {
+                success = true;
+            }
         } else {
             // Went straight to the movie itself.
             // This means IMDB recognized the search string and found an exact
@@ -1020,125 +1368,22 @@ var NetflixMovieRatingsExtractor = (function () {
             // which maps to 'Thirteen Conversations About One Thing'.
             // And then there are the "imdbified" titles...
 
-            // Actually, let's trust IMDB, regardless of year.
-            //// So, do not verify the movie title; verify the movie year only.
-            //// Return first match only, so don't use g flag.
-            //// Don't include closing ) in year to match (1998/I) as well.
-            //regex = new RegExp("<title>(.*?) \\(" + detail.year + ".*?</title>(?:.*?\n)*?.*?/title/(tt\\d+)/", "im");
-            // NOTE: THAT ALL HTML ENTITIES WILL BE CONVERTED TO REGULAR
+            // NOTE: THAT ALL HTML ENTITIES HAVE BEEN CONVERTED TO REGULAR
             // CHARACTERS, SO DON'T USE HTML ENTITIES IN THE REGEX BELOW,
             // EVEN THOUGH THERE MAY BE HTML ENTITIES IN THE PAGE SOURCE!
-            regex = new RegExp("<title>(.*?) \\((.*?)\\).*?</title>(?:.*?\n)*?.*?/title/(tt\\d+)/", "im");
-            regType = 2;
-        }
-
-        // For foreign movie titles like "Le Fabuleux Destin d'Amélie
-        // Poulain" special characters may be encoded as HTML entities,
-        // e.g. "é" -> "&#233;".  In JavaScript, it's hard to encode
-        // special characters as HTML entities, but decoding them is easy.
-        // So, let's do that here.
-        // Also, this helps make extracted strings readable for the user.
-        // NOTE: THE LINE BELOW CONVERTS ALL HTML ENTITIES TO REGULAR
-        // CHARACTERS SO THE REGEX ABOVE SHOULD NOT CONTAIN ANY HTML ENTITIES!
-        text = html_entity_decode(text);
-
-        var success = false;
-        if (regex.test(text)) {
-            success = true;
-            detail.imdb_id = (1 === regType ? RegExp.$1 : RegExp.$3);
-            detail.imdb_title = (1 === regType ? RegExp.$2 : RegExp.$1);
-            detail.imdb_year = (1 === regType ? RegExp.$3 : RegExp.$2);
-
-
-        // Else no match.  Only try AKA match if requested by the user.
-
-        // The AKA matching routine can only be done for exact title
-        // or exact alternate title searches.  It's too error-prone for
-        // using with any of the SUBSTRING algorithms.
-        } else if (TRY_AKA_MATCH &&
-                ALGO_NETFLIX_TITLE_SUBSTRING !== titleAlgorithm) {
-            // Another possibility is that the title is an alias, or AKA.
-            // This happens a lot with foreign films, e.g. "The Machinist"
-            // (which is listed under "El Maquinista").
-            // Solving this case is not easy:
-            // 1. At this point, we can't be sure of the title.
-            // 2. At this point, there are multiple results listed,
-            //    each with AKAs.
-            // 3. Matching AKAs and movie titles in the IMDB result page
-            //    is hard.
-            // Since we cannot be 100% sure, this has been implemented as a
-            // configurable option.  If you want to enable this, set the 
-            // TRY_AKA_MATCH flag to true.
-
-            // AKA titles do NOT use imdbified title.
-            title = getTitleUsedForImdbSearch(detail, titleAlgorithm);
-            esc_title = regexEscape(title);
-
-            // 1.3: regex = new RegExp("<a href=\"/title/(tt\\d+)/\">(.*?)</a> \\(" + detail.year + "(?:.*?\n)*?.*?aka.*\"" + esc_title + "\"", "im");
-            regex = new RegExp("<a href=\"/title/(tt\\d+)/\".*?>(.*?)</a> \\((" + detail.year + ").*?aka <em>\"" + esc_title + "\"", "im");
+            regex = new RegExp("<title>(.*?) \\((\\d{4}).*?</title>(?:.*?\n)*?.*?/title/(tt\\d+)/", "im");
             if (regex.test(text)) {
                 success = true;
-                detail.imdb_id = RegExp.$1;
-                detail.imdb_title = RegExp.$2;
-                detail.imdb_year = RegExp.$3;
-            }
-        }
-
-        if (!success) {
-            // No match.  Try different title match algorithms.
-
-            if (ALGO_NETFLIX_ALT_TITLE === titleAlgorithm) {
-                // Tried alternate title first, now try real title second.
-                success = false;
-    
-                delayed = function () { 
-                    getImdbId(detail, ALGO_NETFLIX_TITLE);
-                };
-                timer = setTimeout(delayed, XHR_REQUEST_DELAY);
-            } else {
-                // Tried real and (if available) alternate title, now try
-                // algorithms more prone to an incorrect match.
-
-                // Titles like "2001: A Space Odyssey" are correctly resolved,
-                // but titles like "Blade Runner: The Final Cut" are not.
-                // Give those that fail another chance; try it without the ":".
-                // But try only once, to avoid incorrect matches, e.g. for
-                // Lisa Lampanelli: Dirty Girl: No Protection.
-                var idx = detail.title.lastIndexOf(':');   // Use Netflix title.
-                if (ALGO_NETFLIX_TITLE_SUBSTRING !== titleAlgorithm &&
-                            idx >= 0) {
-                    success = false;
-
-                    detail.imdb_title = detail.title.substring(0, idx);
-                    delayed = function () { 
-                        getImdbId(detail, ALGO_NETFLIX_TITLE_SUBSTRING);
-                    };
-                    timer = setTimeout(delayed, XHR_REQUEST_DELAY);
-                } else {
-                    // Could not resolve.  Keep IMDB data empty and continue.
-                    detail.imdb_id = '';
-                    detail.imdb_title = '';
-                    detail.imdb_year = '';
-
-                    // Treat as success, so that rating gets saved.
-                    success = true;
-                }
+                detail.imdb_title = RegExp.$1;
+                detail.imdb_year = RegExp.$2;
+                detail.imdb_id = RegExp.$3;
             }
         }
 
         if (success) {
-            // Only output IMDB title if it's different from Netflix's.
-            if (detail.title === detail.imdb_title) {
-                delete(detail.imdb_title);
-            }
-            // Only output IMDB year if it's different from Netflix's.
-            if (detail.year === detail.imdb_year) {
-                delete(detail.imdb_year);
-            }
-            saveRating(detail);
-
-            // Continue with more IMDB work.
-            doImdbWork();
+            processSuccessfulImdbTitleMatch(detail);
+        } else {
+            runNextImdbTitleMatchAlgorithm(detail, algo, text);
         }
     }
 
@@ -1159,11 +1404,8 @@ var NetflixMovieRatingsExtractor = (function () {
             // Now wait for user to press Start button.
         }
     };
-}());
+}()).init();   // Auto-run this script.
 // End singleton pattern.
-
-// Run this script.
-NetflixMovieRatingsExtractor.init();
 
 ///////////////////////////////////////////////////////////////////////////////
 
