@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.6, 2009-11-26
+// Version 1.7, 2010-05-02
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.6
-// @description    v1.6: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.7
+// @description    v1.7: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // ==/UserScript==
 //
@@ -769,7 +769,7 @@
         var elt = document.createElement('textarea');
         elt.innerHTML = str.replace(/</g, '<').replace(/>/g, '>');
         var result = elt.value;
-        elt = null;
+        delete elt;
         return result;
     }
 
@@ -1261,7 +1261,7 @@
 
         // JavaScript does not support regex spanning multiple lines...
         // So, added "(?:.*?\n)*?" before the ".*?stars" part.
-        var regex = /"list-title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-mpaa">(.*?)<.*?"list-genre">(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)"/gim;
+        var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-mpaa">(.*?)<.*?"list-genre">(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)"/gim;
         while (regex.test(text)) {
             seenOne = true;
 
