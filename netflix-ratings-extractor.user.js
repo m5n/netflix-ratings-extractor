@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.7, 2010-05-02
+// Version 1.8, 2010-07-24
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,9 +11,10 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.7
-// @description    v1.7: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.8
+// @description    v1.8: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
+// @include        http://movies.netflix.com/*
 // ==/UserScript==
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -172,9 +173,6 @@
         if (document.getElementById('col_year').checked) {
             result += detail.year + '\t';
         }
-        if (document.getElementById('col_mpaa').checked) {
-            result += detail.mpaa + '\t';
-        }
         if (document.getElementById('col_genre').checked) {
             result += detail.genre + '\t';
         }
@@ -237,7 +235,6 @@
                 'title': 'Title',
                 'alt': 'Alternate Title',
                 'year': 'Year',
-                'mpaa': 'MPAA',
                 'genre': 'Genre',
                 'rating': 'Rating',
                 'imdb_id': 'IMDB ID',
@@ -576,7 +573,6 @@
         addCheckbox(td, 'col_title', 'Title', true);
         addCheckbox(td, 'col_alttitle', 'Alternate Title', true);
         addCheckbox(td, 'col_year', 'Year', true);
-        addCheckbox(td, 'col_mpaa', 'MPAA', true);
         addCheckbox(td, 'col_genre', 'Genre', true);
         addCheckbox(td, 'col_rating', 'Rating', true);
         addCheckbox(td, 'col_imdb_id', 'IMDB ID', false,
@@ -732,11 +728,9 @@
     function buildGui() {
         // Add options to the Tools->Greasemonkey->User Script Commands menu.
         GM_registerMenuCommand(
-                'Start Netflix Movie Ratings Extractor (Includes IMDB Movie ' +
-                'Data Lookup)', startScript);
+                'Start Netflix Movie Ratings Extractor', startScript);
         GM_registerMenuCommand(
-                'Stop Netflix Movie Ratings Extractor (Includes IMDB Movie ' +
-                'Data Lookup)', stopScript);
+                'Stop Netflix Movie Ratings Extractor', stopScript);
 
         // Create GUI container.
         var gui = document.createElement('div');
@@ -1218,9 +1212,6 @@
         if (!document.getElementById('col_year').checked) {
             delete detail.year;
         }
-        if (!document.getElementById('col_mpaa').checked) {
-            delete detail.mpaa;
-        }
         if (!document.getElementById('col_genre').checked) {
             delete detail.genre;
         }
@@ -1261,12 +1252,12 @@
 
         // JavaScript does not support regex spanning multiple lines...
         // So, added "(?:.*?\n)*?" before the ".*?stars" part.
-        var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-mpaa">(.*?)<.*?"list-genre">(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)"/gim;
+        var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-genre">(.*?)<.*?sbmf-(\d+)"/gim;
         while (regex.test(text)) {
             seenOne = true;
 
             // TODO: account for 1/2 star ratings.
-            var rating = Math.floor(RegExp.$8 / 10);
+            var rating = Math.floor(RegExp.$7 / 10);
 
             // If no other ratings need to be exported, stop early.
             if (stopEarly(rating)) {
@@ -1283,9 +1274,8 @@
                 'title': RegExp.$2,
                 'year': RegExp.$3,
                 'alt': RegExp.$5,
-                'mpaa': RegExp.$6,
-                'genre': RegExp.$7,
-                'rating': RegExp.$8 / 10
+                'genre': RegExp.$6,
+                'rating': RegExp.$7 / 10
             };
 
             if (GET_IMDB_DATA) {
