@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.8, 2010-07-24
+// Version 1.9, 2010-11-27
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.8
-// @description    v1.8: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.9
+// @description    v1.9: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // @include        http://movies.netflix.com/*
 // ==/UserScript==
@@ -465,27 +465,23 @@
         bStop.addEventListener('click', stopScript, true);
 
         // Create extra tab to go directly to your ratings.
-        var nav = document.getElementById('primaryNav');
+        var nav = document.getElementsByClassName('nav-menu')[0];
         var liElt = document.createElement('li');
-        liElt.setAttribute('id', 'yrTab');   // your ratings tab
-        liElt.setAttribute('class', 'navItem short');
+        liElt.setAttribute('id', 'nav-ratings');   // your ratings tab
+        liElt.setAttribute('class', 'nav-item');
         var aElt = document.createElement('a');
         aElt.setAttribute('title', 'View your movie ratings');
         aElt.setAttribute('href', 'http://www.netflix.com/MoviesYouveSeen');
-        var span1Elt = document.createElement('span');
-        span1Elt.setAttribute('class', 'w1');
-        var span2Elt = document.createElement('span');
-        span2Elt.setAttribute('class', 'w2');
-        span2Elt.appendChild(document.createTextNode('Your Ratings'));
-        span1Elt.appendChild(span2Elt);
-        aElt.appendChild(span1Elt);
+        var spanElt = document.createElement('span');
+        spanElt.appendChild(document.createTextNode('Your Ratings'));
+        aElt.appendChild(spanElt);
         liElt.appendChild(aElt);
         nav.appendChild(liElt);
 
         // If we're on the ratings page, fake the tab being selected.
         if (0 === document.URL.indexOf(
                 'http://www.netflix.com/MoviesYouveSeen')) {
-            var curLiElt = document.getElementById('rTab');
+            var curLiElt = document.getElementById('nav-recs');
             var tmp = curLiElt.getAttribute('class');
             curLiElt.setAttribute('class', liElt.getAttribute('class'));
             liElt.setAttribute('class', tmp);
@@ -745,7 +741,7 @@
                 'Lookup)'));
         gui.appendChild(pElt);
 
-        if (document.getElementById('profilesmenu')) {
+        if (document.getElementById('profiles-menu')) {
             // User is signed in.
             var realGui = buildSignedInGui();
             gui.appendChild(realGui);
