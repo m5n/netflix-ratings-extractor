@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.9, 2010-11-27
+// Version 1.10, 2010-12-02
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.9
-// @description    v1.9: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.10
+// @description    v1.10: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // @include        http://movies.netflix.com/*
 // ==/UserScript==
@@ -464,9 +464,17 @@
         bStop.appendChild(document.createTextNode('Stop'));
         bStop.addEventListener('click', stopScript, true);
 
+        // Sometimes Netflix has a "Give Netflix" promotion; make sure our
+        // our new tab fits.
+        var liElt = document.getElementById('nav-gift');
+        if (liElt) {
+            var spanElt = liElt.getElementsByTagName('span')[0];
+            spanElt.style.minWidth = '80px';
+        }
+
         // Create extra tab to go directly to your ratings.
         var nav = document.getElementsByClassName('nav-menu')[0];
-        var liElt = document.createElement('li');
+        liElt = document.createElement('li');
         liElt.setAttribute('id', 'nav-ratings');   // your ratings tab
         liElt.setAttribute('class', 'nav-item');
         var aElt = document.createElement('a');
