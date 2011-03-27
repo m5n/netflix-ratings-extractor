@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.10, 2010-12-02
+// Version 1.11, 2011-03-27
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.10
-// @description    v1.10: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.11
+// @description    v1.11: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // @include        http://movies.netflix.com/*
 // ==/UserScript==
@@ -25,11 +25,11 @@
 //
 // This script will scrape the Netflix pages containing your rated movies,
 // extract the name, rating, etc, and try to get the IMDB ID for it.
-// (To run the script, navigate to: Movies You'll Love -> Movies You've Rated,
+// (To run the script, navigate to: Suggestions For You -> Movies You've Rated,
 // or click on the new "Your Ratings" tab at the top of the page.)
 // A Netflix movie URL can be reconstructed like so:
 // 
-//     http://www.netflix.com/Movie/<netflix_id>/
+//     http://movies.netflix.com/Movie/<netflix_id>/
 //
 // If IMDB lookup is enabled, the IMDB title and year column will only be
 // outputted if they differ from Netflix's title and year.
@@ -214,6 +214,7 @@
 
         startTime = (new Date()).getTime();
 
+/* TODO
         // Get checkbox options.
         GET_IMDB_DATA = document.getElementById('getImdbData').checked;
         if (SHOW_BEST_EFFORT_MATCH_OPTION) {
@@ -227,6 +228,7 @@
                     'details.\nOutput will start once Netflix data has been ' +
                     'extracted.');
         }
+*/
 
         // Write out column titles.
         saveRating(
@@ -268,8 +270,10 @@
         }
 
         // TODO: don't use XHR if already on page pagenum.
-        var url = 'http://www.netflix.com/MoviesYouveSeen?' +
-                'pageNum=' + parseInt(pagenum, 10);
+        var host = window.location.host ? window.location.host :
+                'movies.netflix.com';
+        var url = 'http://' + host + '/MoviesYouveSeen?' +
+                'pn=' + parseInt(pagenum, 10);
 
         GM_xmlhttpRequest({
             'method': 'GET',
@@ -289,19 +293,24 @@
         // Get max #pages and max #ratings.
         // Oops, Netflix has two elements with the same ID.  Work around it.
         //var elt = document.getElementById('nav-rateMovies');
-        var elt = document.getElementById('secondaryNav');
+        var elt = document.getElementById('sub-nav');
+        if (!elt) {
+            elt = document.getElementById('secondaryNav');
+        }
         if (elt) {
             var elts = elt.getElementsByTagName('li');
             for (var ee = 0; ee < elts.length; ee++) {
-                if (/navItem-current/.test(elts[ee].className)) {
+                if (/nav-item-current/.test(elts[ee].className) ||
+                        /navItem-current/.test(elts[ee].className)) {
                     elt = elts[ee];
                     break;
                 }
             }
         }
         if (elt) {
-            if (/\((\d+)\)/.test(elt.innerHTML)) {
+            if (/\(([\d,]+)\)/.test(elt.innerHTML)) {
                 maxRatingNum = RegExp.$1;
+                maxRatingNum = maxRatingNum.replace(/,/g, '');
                 maxPageNum = Math.ceil(maxRatingNum / 20);
             }
         }
@@ -355,14 +364,19 @@
 
     function createFieldset(text) {
         var fieldset = document.createElement('fieldset');
+        fieldset.setAttribute('style', 'text-align: left; border: 1px solid #fff; padding: 0.5em 1em 1em 1em; margin: 1em');
         var legend = document.createElement('legend');
-        legend.setAttribute('style', 'color: #fff');
+        legend.setAttribute('style', 'color: #fff; padding: 0 0.25em');
         legend.appendChild(document.createTextNode(text));
         fieldset.appendChild(legend);
         return fieldset;
     }
 
-    function addCheckbox(td, id, text, checked, onChangeFn) {
+    function addCheckbox(td, id, text, checked, onChangeFn, display) {
+        if (undefined === display) {
+            display = true;
+        }
+
         var box = document.createElement('input');
         box.setAttribute('type', 'checkbox');
         box.setAttribute('id', id);
@@ -373,16 +387,21 @@
             box.addEventListener('change', onChangeFn, true);
         }
         var label = document.createElement('label');
-        label.setAttribute('style', 'margin-right: 1em');
+        label.setAttribute('style', 'margin: 0 1em 0 0.25em');
         label.setAttribute('for', box.id);
         label.appendChild(document.createTextNode(text));
         td.appendChild(box);
-        td.appendChild(label);
+        if (display) {
+            td.appendChild(label);
+        } else {
+            box.removeAttribute('checked');
+            box.setAttribute('style', 'display: none');
+        }
     }
 
     function addHeader(td, text) {
         td.setAttribute('align', 'left');
-        td.setAttribute('style', 'font-size: larger; color: #fff');
+        td.setAttribute('style', 'font-size: larger; color: #fff; padding: 0.5em 0');
         td.appendChild(document.createTextNode(text));
     }
 
@@ -472,6 +491,9 @@
             spanElt.style.minWidth = '80px';
         }
 
+        var host = window.location.host ? window.location.host :
+                'movies.netflix.com';
+
         // Create extra tab to go directly to your ratings.
         var nav = document.getElementsByClassName('nav-menu')[0];
         liElt = document.createElement('li');
@@ -479,7 +501,7 @@
         liElt.setAttribute('class', 'nav-item');
         var aElt = document.createElement('a');
         aElt.setAttribute('title', 'View your movie ratings');
-        aElt.setAttribute('href', 'http://www.netflix.com/MoviesYouveSeen');
+        aElt.setAttribute('href', 'http://' + host + '/MoviesYouveSeen');
         var spanElt = document.createElement('span');
         spanElt.appendChild(document.createTextNode('Your Ratings'));
         aElt.appendChild(spanElt);
@@ -487,8 +509,7 @@
         nav.appendChild(liElt);
 
         // If we're on the ratings page, fake the tab being selected.
-        if (0 === document.URL.indexOf(
-                'http://www.netflix.com/MoviesYouveSeen')) {
+        if (0 === document.URL.indexOf('http://' + host + '/MoviesYouveSeen')) {
             var curLiElt = document.getElementById('nav-recs');
             var tmp = curLiElt.getAttribute('class');
             curLiElt.setAttribute('class', liElt.getAttribute('class'));
@@ -575,20 +596,21 @@
         td.setAttribute('style', 'color: #fff');
         addCheckbox(td, 'col_id', 'ID', true);
         addCheckbox(td, 'col_title', 'Title', true);
-        addCheckbox(td, 'col_alttitle', 'Alternate Title', true);
-        addCheckbox(td, 'col_year', 'Year', true);
+        addCheckbox(td, 'col_alttitle', 'Alternate Title', true, undefined, false);
+        addCheckbox(td, 'col_year', 'Year', true, undefined, false);
         addCheckbox(td, 'col_genre', 'Genre', true);
         addCheckbox(td, 'col_rating', 'Rating', true);
         addCheckbox(td, 'col_imdb_id', 'IMDB ID', false,
-                imdbColOptionsChanged);
+                imdbColOptionsChanged, false);
         addCheckbox(td, 'col_imdb_title', 'IMDB Title', false,
-                imdbColOptionsChanged);
+                imdbColOptionsChanged, false);
         addCheckbox(td, 'col_imdb_year', 'IMDB Year', false,
-                imdbColOptionsChanged);
+                imdbColOptionsChanged, false);
         tr.appendChild(td);
         table.appendChild(tr);
         fieldset.appendChild(table);
 
+/* TODO
         tr = document.createElement('tr');
         td = document.createElement('td');
         td.appendChild(document.createElement('br'));
@@ -702,6 +724,7 @@
         }
 
         fieldset.appendChild(table);
+*/
 
         gui.appendChild(maintable);
         gui.appendChild(document.createElement('br'));
@@ -744,9 +767,13 @@
 
         var pElt = document.createElement('p');
         pElt.setAttribute('style', 'font-size: larger; font-weight: bold');
+        // TODO:
+        //pElt.appendChild(document.createTextNode(
+        //        'Netflix Movie Ratings Extractor (Includes IMDB Movie Data ' +
+        //        'Lookup)'));
         pElt.appendChild(document.createTextNode(
-                'Netflix Movie Ratings Extractor (Includes IMDB Movie Data ' +
-                'Lookup)'));
+                'Netflix Movie Ratings Extractor'));
+        pElt.setAttribute('style', 'margin-top: 1em; font-size: medium');
         gui.appendChild(pElt);
 
         if (document.getElementById('profiles-menu')) {
@@ -1256,12 +1283,14 @@
 
         // JavaScript does not support regex spanning multiple lines...
         // So, added "(?:.*?\n)*?" before the ".*?stars" part.
-        var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-genre">(.*?)<.*?sbmf-(\d+)"/gim;
+        //var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-genre">(.*?)<.*?sbmf-(\d+)"/gim;
+        var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<(?:.*?\n)*?.*?"genre">(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)/gim;
         while (regex.test(text)) {
             seenOne = true;
 
             // TODO: account for 1/2 star ratings.
-            var rating = Math.floor(RegExp.$7 / 10);
+            //var rating = Math.floor(RegExp.$7 / 10);
+            var rating = Math.floor(RegExp.$4 / 10);
 
             // If no other ratings need to be exported, stop early.
             if (stopEarly(rating)) {
@@ -1276,10 +1305,12 @@
             var detail = {
                 'id': RegExp.$1,
                 'title': RegExp.$2,
-                'year': RegExp.$3,
-                'alt': RegExp.$5,
-                'genre': RegExp.$6,
-                'rating': RegExp.$7 / 10
+                //'year': RegExp.$3,
+                //'alt': RegExp.$5,
+                //'genre': RegExp.$6,
+                //'rating': RegExp.$7 / 10
+                'genre': RegExp.$3,
+                'rating': RegExp.$4 / 10
             };
 
             if (GET_IMDB_DATA) {
@@ -1311,12 +1342,14 @@
                         'Close the "Preferences" window.\n');
                 addOutput('You may disable the "accept third-party cookies" ' +
                         'setting again after running the script.');
+            } else {
+                alert('Could not extract ratings; please contact the author of this script.');
             }
             stopWorking(true, true);
             return;
         }
 
-        if (!stopNow && text.match(/paginationLink-next/)) {
+        if (!stopNow && text.match(/>next</) && !text.match(/next-inactive/)) {
             // Next page.
             var delayed = function () {
                 getRatingsPage(num + 1);
