@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.11, 2011-03-27
+// Version 1.12, 2011-07-06
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,10 +11,14 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.11
-// @description    v1.11: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.12
+// @description    v1.12: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
+// @include        http://www.netflix.ca/*
+// @include        http://ca.netflix.com/*
 // @include        http://movies.netflix.com/*
+// @include        http://movies.netflix.ca/*
+// @include        http://ca.movies.netflix.com/*
 // ==/UserScript==
 //
 ///////////////////////////////////////////////////////////////////////////////
