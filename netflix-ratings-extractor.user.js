@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.12, 2011-07-06
+// Version 1.13, 2011-07-11
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.12
-// @description    v1.12: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.13
+// @description    v1.13: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // @include        http://www.netflix.ca/*
 // @include        http://ca.netflix.com/*
@@ -497,9 +497,21 @@
 
         var host = window.location.host ? window.location.host :
                 'movies.netflix.com';
+        // For Canada, this resolves to ca.movies.netflix.com,
+        // but could also be www.netflix.com... but we can detect
+        // it based on the menu markup.
+        var isCanada = false;
 
         // Create extra tab to go directly to your ratings.
-        var nav = document.getElementsByClassName('nav-menu')[0];
+        var navElts = document.getElementsByClassName('nav-menu');
+        if (0 === navElts.length) {
+            // Canada uses navigation instead of nav-menu.
+            navElts = document.getElementsByClassName('navigation');
+            if (1 === navElts.length) {
+                isCanada = true;
+            }
+        }
+        var nav = navElts[0];
         liElt = document.createElement('li');
         liElt.setAttribute('id', 'nav-ratings');   // your ratings tab
         liElt.setAttribute('class', 'nav-item');
@@ -510,15 +522,23 @@
         spanElt.appendChild(document.createTextNode('Your Ratings'));
         aElt.appendChild(spanElt);
         liElt.appendChild(aElt);
-        nav.appendChild(liElt);
+        // Don't show tab for Canada if we're on the ratings page, as it doesn't fit.
+        //nav.appendChild(liElt);
 
         // If we're on the ratings page, fake the tab being selected.
         if (0 === document.URL.indexOf('http://' + host + '/MoviesYouveSeen')) {
-            var curLiElt = document.getElementById('nav-recs');
-            var tmp = curLiElt.getAttribute('class');
-            curLiElt.setAttribute('class', liElt.getAttribute('class'));
-            liElt.setAttribute('class', tmp);
+            if (false === isCanada) {
+                var curLiElt = document.getElementById('nav-recs');
+                var tmp = curLiElt.getAttribute('class');
+                curLiElt.setAttribute('class', liElt.getAttribute('class'));
+                liElt.setAttribute('class', tmp);
+                // Now add the tab.
+                nav.appendChild(liElt);
+            }
         } else {
+            // Always show the tab regardless of country.
+            nav.appendChild(liElt);
+
             // Don't show the control panel on any other page.
             return;
         }
@@ -945,8 +965,8 @@
         title = imdbifyTitle(title);
         title = encodeURIComponent(title);
 
-        // For some reason, the "é" character in titles like "Le Fabuleux
-        // Destin d'Amélie Poulain" is encoded as "%A9" by encodeURIComponent
+        // For some reason, the "Ã©" character in titles like "Le Fabuleux
+        // Destin d'AmÃ©lie Poulain" is encoded as "%A9" by encodeURIComponent
         // in stead of "%E9" (which encodeURI does do correctly).  When
         // searching for this title directly from the IMDB search box, IMDB
         // converts this character to "%E9" as well.  Since "%A9" gives no
@@ -1375,9 +1395,9 @@
         // Note: "text" can contain either the search results page or the
         // movie page itself.
 
-        // For foreign movie titles like "Le Fabuleux Destin d'Amélie
+        // For foreign movie titles like "Le Fabuleux Destin d'AmÃ©lie
         // Poulain" special characters may be encoded as HTML entities,
-        // e.g. "é" -> "&#233;".  In JavaScript, it's hard to encode
+        // e.g. "Ã©" -> "&#233;".  In JavaScript, it's hard to encode
         // special characters as HTML entities, but decoding them is easy.
         // So, let's do that here.
         // Also, this helps make extracted strings readable for the user.
