@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.13, 2011-07-11
+// Version 1.14, 2011-08-06
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.13
-// @description    v1.13: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.14
+// @description    v1.14: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // @include        http://www.netflix.ca/*
 // @include        http://ca.netflix.com/*
@@ -277,7 +277,7 @@
         var host = window.location.host ? window.location.host :
                 'movies.netflix.com';
         var url = 'http://' + host + '/MoviesYouveSeen?' +
-                'pn=' + parseInt(pagenum, 10);
+                'pn=' + parseInt(pagenum, 10) + '&pageNum=' + parseInt(pagenum, 10);
 
         GM_xmlhttpRequest({
             'method': 'GET',
@@ -316,6 +316,31 @@
                 maxRatingNum = RegExp.$1;
                 maxRatingNum = maxRatingNum.replace(/,/g, '');
                 maxPageNum = Math.ceil(maxRatingNum / 20);
+            }
+        }
+
+	if (0 === maxRatingNum) {
+            // Get it from the text itself.
+            elt = document.getElementById('mylBlurb'); 
+            if (elt) {
+                if (/Based on your ([\d\.,]+) ratings,/.test(elt.innerHTML)) {
+                    maxRatingNum = RegExp.$1;
+                    maxRatingNum = maxRatingNum.replace(/[,\.]/g, '');
+                    maxPageNum = Math.ceil(maxRatingNum / 20);
+                }
+            }
+        }
+
+	if (0 === maxRatingNum) {
+            // This case is for a different profile.
+            elt = document.getElementsByClassName('revRatingsDesc'); 
+            if (elt.length > 0) {
+                elt = elt[0];
+                if (/Based on your ([\d\.,]+) ratings,/.test(elt.innerHTML)) {
+                    maxRatingNum = RegExp.$1;
+                    maxRatingNum = maxRatingNum.replace(/[,\.]/g, '');
+                    maxPageNum = Math.ceil(maxRatingNum / 20);
+                }
             }
         }
 
@@ -965,8 +990,8 @@
         title = imdbifyTitle(title);
         title = encodeURIComponent(title);
 
-        // For some reason, the "é" character in titles like "Le Fabuleux
-        // Destin d'Amélie Poulain" is encoded as "%A9" by encodeURIComponent
+        // For some reason, the "Ã©" character in titles like "Le Fabuleux
+        // Destin d'AmÃ©lie Poulain" is encoded as "%A9" by encodeURIComponent
         // in stead of "%E9" (which encodeURI does do correctly).  When
         // searching for this title directly from the IMDB search box, IMDB
         // converts this character to "%E9" as well.  Since "%A9" gives no
@@ -1349,6 +1374,54 @@
             }
         }
 
+        if (!seenOne) {
+            // Possibly another profile page.
+
+            // JavaScript does not support regex spanning multiple lines...
+            // So, added "(?:.*?\n)*?" before the ".*?stars" part.
+            //var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-genre">(.*?)<.*?sbmf-(\d+)"/gim;
+            var regex = /"title">(?:.*?\n)*?.*?<a.*?\/(\d+?)\?trkid=.*?>(.*?)<(?:.*?\n)*?.*?genre">(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)/gim;
+            while (regex.test(text)) {
+                seenOne = true;
+
+                // TODO: account for 1/2 star ratings.
+                //var rating = Math.floor(RegExp.$7 / 10);
+                var rating = Math.floor(RegExp.$4 / 10);
+
+                // If no other ratings need to be exported, stop early.
+                if (stopEarly(rating)) {
+                    stopNow = true;
+                    break;
+                }
+                if (!document.getElementById('rating' + rating).checked) {
+                    continue;
+                }
+                totalRatings++;
+
+                var detail = {
+                    'id': RegExp.$1,
+                    'title': RegExp.$2,
+                    //'year': RegExp.$3,
+                    //'alt': RegExp.$5,
+                    //'genre': RegExp.$6,
+                    //'rating': RegExp.$7 / 10
+                    'genre': RegExp.$3,
+                    'rating': RegExp.$4 / 10
+                };
+
+                if (GET_IMDB_DATA) {
+                    // Make IMDB calls after visiting all ratings pages.
+
+                    // Save memory by only storing values for columns of interest.
+                    detail = cleanDetail(detail);
+
+                    imdbQueue.push(detail);
+                } else {
+                    saveRating(detail);
+                }
+            }
+        }
+
         if (!seenOne && totalRatings === 0) {
             // Either user has no ratings at all,
             // or user has not enabled the "accept third-party cookies" setting.
@@ -1395,9 +1468,9 @@
         // Note: "text" can contain either the search results page or the
         // movie page itself.
 
-        // For foreign movie titles like "Le Fabuleux Destin d'Amélie
+        // For foreign movie titles like "Le Fabuleux Destin d'AmÃ©lie
         // Poulain" special characters may be encoded as HTML entities,
-        // e.g. "é" -> "&#233;".  In JavaScript, it's hard to encode
+        // e.g. "Ã©" -> "&#233;".  In JavaScript, it's hard to encode
         // special characters as HTML entities, but decoding them is easy.
         // So, let's do that here.
         // Also, this helps make extracted strings readable for the user.
@@ -1460,4 +1533,3 @@
 // End singleton pattern.
 
 ///////////////////////////////////////////////////////////////////////////////
-
