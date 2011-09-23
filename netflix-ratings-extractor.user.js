@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.14, 2011-08-06
+// Version 1.15, 2011-09-23
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.14
-// @description    v1.14: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.15
+// @description    v1.15: Export your rated Netflix movies and their IMDB movie IDs.
 // @include        http://www.netflix.com/*
 // @include        http://www.netflix.ca/*
 // @include        http://ca.netflix.com/*
@@ -559,10 +559,33 @@
                 liElt.setAttribute('class', tmp);
                 // Now add the tab.
                 nav.appendChild(liElt);
+
+                // Make document wider so that tabs don't get pushed down.
+                document.getElementById('doc2').setAttribute('style', 'width: 79em;');
+                // Align visual stying.
+                var ee = document.getElementsByClassName('merch-vignette');
+                if (ee.length > 0) {
+                    ee[0].setAttribute('style', 'background-position-x: right; background-repeat: no-repeat;');
+                }
             }
         } else {
             // Always show the tab regardless of country.
             nav.appendChild(liElt);
+
+            if (0 === document.URL.indexOf('http://' + host + '/RecommendationsHome') ||
+                    0 === document.URL.indexOf('http://' + host + '/Queue')) {
+                // Make document wider so that tabs don't get pushed down.
+                document.getElementById('doc2').setAttribute('style', 'width: 79em');
+                // Align visual stying.
+                var ee = document.getElementsByClassName('merch-vignette');
+                if (ee.length > 0) {
+                    ee[0].setAttribute('style', 'background-position-x: right; background-repeat: no-repeat;');
+                }
+                var ee = document.getElementsByClassName('queue-vignette');
+                if (ee.length > 0) {
+                    ee[0].setAttribute('style', 'background-position-x: right; background-repeat: no-repeat;');
+                }
+            }
 
             // Don't show the control panel on any other page.
             return;
@@ -1407,6 +1430,56 @@
                     //'rating': RegExp.$7 / 10
                     'genre': RegExp.$3,
                     'rating': RegExp.$4 / 10
+                };
+
+                if (GET_IMDB_DATA) {
+                    // Make IMDB calls after visiting all ratings pages.
+
+                    // Save memory by only storing values for columns of interest.
+                    detail = cleanDetail(detail);
+
+                    imdbQueue.push(detail);
+                } else {
+                    saveRating(detail);
+                }
+            }
+        }
+
+        if (!seenOne) {
+            // Fix 1.14... should this replace the "Possibly another profile page" above?
+
+            // JavaScript does not support regex spanning multiple lines...
+            // So, added "(?:.*?\n)*?" before the ".*?stars" part.
+            //var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-genre">(.*?)<.*?sbmf-(\d+)"/gim;
+            var regex = /"title">(?:.*?\n)*?.*?<a.*?\/(\d+?)\?trkid=.*?>((.*?\n)*?.*?)<(?:.*?\n)*?.*?"genre">(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)/gim;
+            while (regex.test(text)) {
+                seenOne = true;
+
+                // TODO: account for 1/2 star ratings.
+                //var rating = Math.floor(RegExp.$7 / 10);
+                var rating = RegExp.$5 / 10;
+                var ratingFloor = Math.floor(rating);
+                var genre = RegExp.$4;
+
+                // If no other ratings need to be exported, stop early.
+                if (stopEarly(ratingFloor)) {
+                    stopNow = true;
+                    break;
+                }
+                if (!document.getElementById('rating' + ratingFloor).checked) {
+                    continue;
+                }
+                totalRatings++;
+
+                var detail = {
+                    'id': RegExp.$1,
+                    'title': trim(RegExp.$2),
+                    //'year': RegExp.$3,
+                    //'alt': RegExp.$5,
+                    //'genre': RegExp.$6,
+                    //'rating': RegExp.$7 / 10
+                    'genre': genre,
+                    'rating': rating
                 };
 
                 if (GET_IMDB_DATA) {
