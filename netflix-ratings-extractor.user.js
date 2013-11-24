@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.15, 2011-09-23
+// Version 1.16, 2011-11-23
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,14 +11,13 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.15
-// @description    v1.15: Export your rated Netflix movies and their IMDB movie IDs.
-// @include        http://www.netflix.com/*
-// @include        http://www.netflix.ca/*
-// @include        http://ca.netflix.com/*
-// @include        http://movies.netflix.com/*
-// @include        http://movies.netflix.ca/*
-// @include        http://ca.movies.netflix.com/*
+// @version        1.16
+// @description    v1.16: Export your rated Netflix movies and their IMDB movie IDs.
+// @match *://*.netflix.ca/MoviesYouveSeen
+// @match *://*.netflix.com/MoviesYouveSeen
+// NinjaKit doesn't seem to support @match, so use @include
+// @include htt*://*.netflix.ca/MoviesYouveSeen
+// @include htt*://*.netflix.com/MoviesYouveSeen
 // ==/UserScript==
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -254,15 +253,12 @@
         // Inform the user about what happened.
         if (forced) {
             addOutput("Stopped.");
-            alert('Stopped.');
         } else {
             var endTime = (new Date()).getTime();
             addOutput("Done.\nProcessed " + totalPages +
                     " pages.  Extracted " + totalRatings +
                     " ratings.\nScript took " +
                     Math.round((endTime - startTime) / 1000) + " seconds.");
-
-            alert('Done.');
         }
     }
 
@@ -295,53 +291,30 @@
         imdbQueue = [];
 
         // Get max #pages and max #ratings.
-        // Oops, Netflix has two elements with the same ID.  Work around it.
-        //var elt = document.getElementById('nav-rateMovies');
-        var elt = document.getElementById('sub-nav');
+        var elt = document.getElementById('mylBlurb'); 
         if (!elt) {
-            elt = document.getElementById('secondaryNav');
+            // Attempt to get from body.
+            elt = document.getElementsByTagName('body')[0]; 
         }
         if (elt) {
-            var elts = elt.getElementsByTagName('li');
-            for (var ee = 0; ee < elts.length; ee++) {
-                if (/nav-item-current/.test(elts[ee].className) ||
-                        /navItem-current/.test(elts[ee].className)) {
-                    elt = elts[ee];
-                    break;
-                }
-            }
-        }
-        if (elt) {
-            if (/\(([\d,]+)\)/.test(elt.innerHTML)) {
+            if (/Based on your ([\d\.,]+) ratings,/.test(elt.innerHTML)) {
                 maxRatingNum = RegExp.$1;
-                maxRatingNum = maxRatingNum.replace(/,/g, '');
-                maxPageNum = Math.ceil(maxRatingNum / 20);
-            }
-        }
+                maxRatingNum = maxRatingNum.replace(/[,\.]/g, '');
 
-	if (0 === maxRatingNum) {
-            // Get it from the text itself.
-            elt = document.getElementById('mylBlurb'); 
-            if (elt) {
-                if (/Based on your ([\d\.,]+) ratings,/.test(elt.innerHTML)) {
-                    maxRatingNum = RegExp.$1;
-                    maxRatingNum = maxRatingNum.replace(/[,\.]/g, '');
+                elt = document.getElementsByClassName('pageNumber');
+                if (elt) {
+                    maxPageNum = elt[elt.length - 1].innerHTML;
+                } else {
                     maxPageNum = Math.ceil(maxRatingNum / 20);
                 }
             }
         }
 
 	if (0 === maxRatingNum) {
-            // This case is for a different profile.
-            elt = document.getElementsByClassName('revRatingsDesc'); 
-            if (elt.length > 0) {
-                elt = elt[0];
-                if (/Based on your ([\d\.,]+) ratings,/.test(elt.innerHTML)) {
-                    maxRatingNum = RegExp.$1;
-                    maxRatingNum = maxRatingNum.replace(/[,\.]/g, '');
-                    maxPageNum = Math.ceil(maxRatingNum / 20);
-                }
-            }
+            maxRatingNum = prompt('The script has problems determining ' +
+                'the number of movies you\'ve rated. Please enter it:');
+            maxPageNum = prompt('The script has problems determining ' +
+                'how many pages of ratings there are. Please enter it:');
         }
 
         // This is the first request; no need to delay this call.
@@ -393,9 +366,9 @@
 
     function createFieldset(text) {
         var fieldset = document.createElement('fieldset');
-        fieldset.setAttribute('style', 'text-align: left; border: 1px solid #fff; padding: 0.5em 1em 1em 1em; margin: 1em');
+        fieldset.setAttribute('style', 'text-align: left; border: 1px solid; padding: 0.5em 1em 1em 1em; margin: 1em');
         var legend = document.createElement('legend');
-        legend.setAttribute('style', 'color: #fff; padding: 0 0.25em');
+        legend.setAttribute('style', 'padding: 0 0.25em');
         legend.appendChild(document.createTextNode(text));
         fieldset.appendChild(legend);
         return fieldset;
@@ -430,7 +403,7 @@
 
     function addHeader(td, text) {
         td.setAttribute('align', 'left');
-        td.setAttribute('style', 'font-size: larger; color: #fff; padding: 0.5em 0');
+        td.setAttribute('style', 'font-size: larger; padding: 0.5em 0');
         td.appendChild(document.createTextNode(text));
     }
 
@@ -550,6 +523,7 @@
         // Don't show tab for Canada if we're on the ratings page, as it doesn't fit.
         //nav.appendChild(liElt);
 
+/* TODO: remove tab selection logic
         // If we're on the ratings page, fake the tab being selected.
         if (0 === document.URL.indexOf('http://' + host + '/MoviesYouveSeen')) {
             if (false === isCanada) {
@@ -590,6 +564,7 @@
             // Don't show the control panel on any other page.
             return;
         }
+*/
 
         // Note: the rest is only executed if we're on the ratings page.
 
@@ -640,7 +615,6 @@
         tr = document.createElement('tr');
         td = document.createElement('td');
         td.setAttribute('align', 'left');
-        td.setAttribute('style', 'color: #fff');
         addCheckbox(td, 'rating5', '5 Stars', true);
         addCheckbox(td, 'rating4', '4 Stars', true);
         addCheckbox(td, 'rating3', '3 Stars', true);
@@ -665,12 +639,11 @@
         tr = document.createElement('tr');
         td = document.createElement('td');
         td.setAttribute('align', 'left');
-        td.setAttribute('style', 'color: #fff');
         addCheckbox(td, 'col_id', 'ID', true);
         addCheckbox(td, 'col_title', 'Title', true);
         addCheckbox(td, 'col_alttitle', 'Alternate Title', true, undefined, false);
         addCheckbox(td, 'col_year', 'Year', true, undefined, false);
-        addCheckbox(td, 'col_genre', 'Genre', true);
+        addCheckbox(td, 'col_genre', 'Genre', true, undefined, false);
         addCheckbox(td, 'col_rating', 'Rating', true);
         addCheckbox(td, 'col_imdb_id', 'IMDB ID', false,
                 imdbColOptionsChanged, false);
@@ -707,7 +680,6 @@
         td.setAttribute('colspan', '2');
         td.setAttribute('align', 'left');
         td.setAttribute('valign', 'top');
-        td.setAttribute('style', 'color: #fff');
         var label = document.createElement('label');
         label.setAttribute('for', cGetImdbData.id);
         label.appendChild(document.createTextNode(
@@ -739,7 +711,6 @@
             td = document.createElement('td');
             td.setAttribute('align', 'left');
             td.setAttribute('valign', 'top');
-            td.setAttribute('style', 'color: #fff');
             label = document.createElement('label');
             label.setAttribute('for', cBestEffortMatch.id);
             label.appendChild(document.createTextNode(
@@ -827,15 +798,15 @@
     function buildGui() {
         // Add options to the Tools->Greasemonkey->User Script Commands menu.
         GM_registerMenuCommand(
-                'Start Netflix Movie Ratings Extractor', startScript);
+                'Start Netflix Ratings Extractor', startScript);
         GM_registerMenuCommand(
-                'Stop Netflix Movie Ratings Extractor', stopScript);
+                'Stop Netflix Ratings Extractor', stopScript);
 
         // Create GUI container.
         var gui = document.createElement('div');
         gui.setAttribute('style',
-                'color: #fff; text-align: center; margin: 2em 0; ' +
-                'padding: 0 1em; border: 10px solid #8F0707;');
+                'text-align: center; margin: 4em 0 1em; ' +
+                'padding: 0 1em; border: 10px solid #b9090b;');
 
         var pElt = document.createElement('p');
         pElt.setAttribute('style', 'font-size: larger; font-weight: bold');
@@ -844,7 +815,7 @@
         //        'Netflix Movie Ratings Extractor (Includes IMDB Movie Data ' +
         //        'Lookup)'));
         pElt.appendChild(document.createTextNode(
-                'Netflix Movie Ratings Extractor'));
+                'Netflix Ratings Extractor'));
         pElt.setAttribute('style', 'margin-top: 1em; font-size: medium');
         gui.appendChild(pElt);
 
@@ -854,9 +825,11 @@
             gui.appendChild(realGui);
 
             // Add GUI to the page.
-            var content = document.getElementById('footer');
-            if (!content) {
+            var content = document.getElementsByClassName('vignette');
+            if (!content || !content.length) {
                 content = document.body;
+            } else {
+                content = content[0];
             }
             content.appendChild(gui);
         }
@@ -1013,8 +986,8 @@
         title = imdbifyTitle(title);
         title = encodeURIComponent(title);
 
-        // For some reason, the "Ã©" character in titles like "Le Fabuleux
-        // Destin d'AmÃ©lie Poulain" is encoded as "%A9" by encodeURIComponent
+        // For some reason, the "é" character in titles like "Le Fabuleux
+        // Destin d'Amélie Poulain" is encoded as "%A9" by encodeURIComponent
         // in stead of "%E9" (which encodeURI does do correctly).  When
         // searching for this title directly from the IMDB search box, IMDB
         // converts this character to "%E9" as well.  Since "%A9" gives no
@@ -1356,13 +1329,13 @@
         // JavaScript does not support regex spanning multiple lines...
         // So, added "(?:.*?\n)*?" before the ".*?stars" part.
         //var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<.*?"list-titleyear">.*?\((.*?)\)<.*?("list-alttitle">(.*?)<.*?)?"list-genre">(.*?)<.*?sbmf-(\d+)"/gim;
-        var regex = /"title"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<(?:.*?\n)*?.*?"genre">(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)/gim;
+        var regex = /"title\s*?"><a.*?\/(\d+?)\?trkid=.*?>(.*?)<(?:.*?\n)*?.*?sbmf-(\d+)/gim;
         while (regex.test(text)) {
             seenOne = true;
 
             // TODO: account for 1/2 star ratings.
             //var rating = Math.floor(RegExp.$7 / 10);
-            var rating = Math.floor(RegExp.$4 / 10);
+            var rating = Math.floor(RegExp.$3 / 10);
 
             // If no other ratings need to be exported, stop early.
             if (stopEarly(rating)) {
@@ -1381,8 +1354,8 @@
                 //'alt': RegExp.$5,
                 //'genre': RegExp.$6,
                 //'rating': RegExp.$7 / 10
-                'genre': RegExp.$3,
-                'rating': RegExp.$4 / 10
+                //'genre': RegExp.$3,
+                'rating': RegExp.$3 / 10
             };
 
             if (GET_IMDB_DATA) {
@@ -1519,7 +1492,7 @@
             return;
         }
 
-        if (!stopNow && text.match(/>next</) && !text.match(/next-inactive/)) {
+        if (!stopNow && text.match(/>next</i) && !text.match(/next-inactive/i)) {
             // Next page.
             var delayed = function () {
                 getRatingsPage(num + 1);
@@ -1541,9 +1514,9 @@
         // Note: "text" can contain either the search results page or the
         // movie page itself.
 
-        // For foreign movie titles like "Le Fabuleux Destin d'AmÃ©lie
+        // For foreign movie titles like "Le Fabuleux Destin d'Amélie
         // Poulain" special characters may be encoded as HTML entities,
-        // e.g. "Ã©" -> "&#233;".  In JavaScript, it's hard to encode
+        // e.g. "é" -> "&#233;".  In JavaScript, it's hard to encode
         // special characters as HTML entities, but decoding them is easy.
         // So, let's do that here.
         // Also, this helps make extracted strings readable for the user.
