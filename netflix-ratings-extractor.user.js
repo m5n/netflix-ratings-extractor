@@ -318,8 +318,7 @@
         }
 
         // This is the first request; no need to delay this call.
-        //TODO: getRatingsPage(1);
-        parseRatingsPage(1, document.getElementsByTagName('body')[0].innerHTML)
+        getRatingsPage(1);
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -798,12 +797,10 @@
     // This function builds the GUI and adds it to the page body.
     function buildGui() {
         // Add options to the Tools->Greasemonkey->User Script Commands menu.
-/*
         GM_registerMenuCommand(
                 'Start Netflix Ratings Extractor', startScript);
         GM_registerMenuCommand(
                 'Stop Netflix Ratings Extractor', stopScript);
-*/
 
         // Create GUI container.
         var gui = document.createElement('div');
