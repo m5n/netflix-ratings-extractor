@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.16, 2011-11-23
+// Version 1.17, 2014-03-23
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,13 +11,13 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.16
-// @description    v1.16: Export your rated Netflix movies and their IMDB movie IDs.
-// @match *://*.netflix.ca/MoviesYouveSeen
-// @match *://*.netflix.com/MoviesYouveSeen
+// @version        1.17
+// @description    v1.17: Export your rated Netflix movies and their IMDB movie IDs.
+// @match *://*.netflix.ca/MoviesYouveSeen*
+// @match *://*.netflix.com/MoviesYouveSeen*
 // NinjaKit doesn't seem to support @match, so use @include
-// @include htt*://*.netflix.ca/MoviesYouveSeen
-// @include htt*://*.netflix.com/MoviesYouveSeen
+// @include htt*://*.netflix.ca/MoviesYouveSeen*
+// @include htt*://*.netflix.com/MoviesYouveSeen*
 // ==/UserScript==
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -302,7 +302,7 @@
                 maxRatingNum = maxRatingNum.replace(/[,\.]/g, '');
 
                 elt = document.getElementsByClassName('pageNumber');
-                if (elt) {
+                if (elt && elt.length) {
                     maxPageNum = elt[elt.length - 1].innerHTML;
                 } else {
                     maxPageNum = Math.ceil(maxRatingNum / 20);
@@ -318,7 +318,8 @@
         }
 
         // This is the first request; no need to delay this call.
-        getRatingsPage(1);
+        //TODO: getRatingsPage(1);
+        parseRatingsPage(1, document.getElementsByTagName('body')[0].innerHTML)
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -797,10 +798,12 @@
     // This function builds the GUI and adds it to the page body.
     function buildGui() {
         // Add options to the Tools->Greasemonkey->User Script Commands menu.
+/*
         GM_registerMenuCommand(
                 'Start Netflix Ratings Extractor', startScript);
         GM_registerMenuCommand(
                 'Stop Netflix Ratings Extractor', stopScript);
+*/
 
         // Create GUI container.
         var gui = document.createElement('div');
@@ -827,11 +830,18 @@
             // Add GUI to the page.
             var content = document.getElementsByClassName('vignette');
             if (!content || !content.length) {
-                content = document.body;
+                content = document.getElementsByClassName('listDisplay-default');
+                if (!content || !content.length) {
+                    content = document.body;
+                    content.appendChild(gui);
+                } else {
+                    content = content[0];
+                    content.insertBefore(gui, content.childNodes[0]);
+                }
             } else {
                 content = content[0];
+                content.appendChild(gui);
             }
-            content.appendChild(gui);
         }
     }
 
@@ -1492,7 +1502,7 @@
             return;
         }
 
-        if (!stopNow && text.match(/>next</i) && !text.match(/next-inactive/i)) {
+        if (!stopNow && (text.match(/paginationLink-next/i) || text.match(/>next</i)) && !(text.match(/next-inactive/i) || text.match(/next-disabled/i) || text.match(/paginationLink-prev/i))) {
             // Next page.
             var delayed = function () {
                 getRatingsPage(num + 1);
