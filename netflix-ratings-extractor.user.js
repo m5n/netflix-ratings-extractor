@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
-// Version 1.17, 2014-03-23
+// Version 1.18, 2014-03-27
 // Coded by Maarten van Egmond.  See namespace URL below for contact info.
 // Released under the GPL license: http://www.gnu.org/copyleft/gpl.html
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Movie Ratings Extractor (Includes IMDB Movie Data Lookup)
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        1.17
-// @description    v1.17: Export your rated Netflix movies and their IMDB movie IDs.
+// @version        1.18
+// @description    v1.18: Export your rated Netflix movies and their IMDB movie IDs.
 // @match *://*.netflix.ca/MoviesYouveSeen*
 // @match *://*.netflix.com/MoviesYouveSeen*
 // NinjaKit doesn't seem to support @match, so use @include
@@ -1499,7 +1499,7 @@
             return;
         }
 
-        if (!stopNow && (text.match(/paginationLink-next/i) || text.match(/>next</i)) && !(text.match(/next-inactive/i) || text.match(/next-disabled/i) || text.match(/paginationLink-prev/i))) {
+        if (!stopNow && (text.match(/paginationLink-next/i) || text.match(/>next</i)) && !(text.match(/next-inactive/i) || text.match(/next-disabled/i))) {
             // Next page.
             var delayed = function () {
                 getRatingsPage(num + 1);
