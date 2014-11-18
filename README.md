@@ -58,9 +58,7 @@ A Netflix movie URL can be reconstructed like so: `http://www.netflix.com/Movie/
 
 Known issues
 ------------
-* The Netflix total ratings count may be wrong. In my case, Netflix reports a total of 1266 ratings, but there are only 1265 movies rated. (You can check this by navigating to the last page, and counting the number of ratings on it. In my case, the last page is 64, and there are only 5 ratings on it. That's 64 * 20 + 5 = 1265.) Nothing can be done about this; this is a bug on Netflix's side.
-* This script consumes a lot of memory and is CPU intensive, and it is recommended to let it run without doing anything else.
-* Also, it's slow. For me, I've seen Firefox grow to 539MB, taking over 30 minutes to output 1265 ratings.
+* If you have the streaming plan, this script will work "as is". If you have the DVD plan, try loading https://www.netflix.com/MoviesYouveSeen and scroll to the end of the page. If it loads more movies, great, you can use this script "as is". If it does not, try [v1.18 of this script](https://raw.githubusercontent.com/m5n/netflix-ratings-extractor/10e33f0063aee2b26f03c12ea3acf5dc2d94b3fe/netflix-ratings-extractor.user.js).
 
 
 History
