@@ -4,6 +4,12 @@ Netflix Ratings Extractor
 Greasemonkey script for Chrome, Firefox, Safari: export your rated Netflix movies.
 
 
+Main UI:
+<p align="center">
+<img src="https://raw.githubusercontent.com/m5n/netflix-ratings-extractor/master/img/ui.png" alt="Netflix Ratings Extractor UI"/>
+</p>
+
+
 Installation instructions
 -------------------------
 
