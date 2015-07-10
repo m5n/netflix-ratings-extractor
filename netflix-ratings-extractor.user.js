@@ -222,13 +222,14 @@
         container.appendChild(gui);
 
         // Add UI to the page.
-        content = document.getElementsByClassName('account-header');
+        content = document.getElementsByClassName('bd');
         if (content && content.length) {
             content = content[0];
             content.insertBefore(container, content.childNodes[0]);
         } else {
+            var refNode = document.querySelectorAll('body > div')[1];
             content = document.body;
-            content.appendChild(container);
+            content.insertBefore(container, refNode);
         }
     }
 
