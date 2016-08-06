@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Ratings Extractor
-// Version 2.0, 2014-11-17
+// Version 2.1, 2016-08-05
 // Coded by Maarten van Egmond: https://github.com/m5n/
 // Released under the MIT license.
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Ratings Extractor
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        2.0
-// @description    v2.0: Export your rated Netflix movies.
+// @version        2.1
+// @description    v2.1: Export your rated Netflix movies.
 // @match *://*.netflix.ca/MoviesYouveSeen*
 // @match *://*.netflix.nl/MoviesYouveSeen*
 // @match *://*.netflix.com/MoviesYouveSeen*
@@ -37,7 +37,7 @@
 
     var
         // Time to wait for additional movies to be added to the page.
-        LAZY_LOAD_DELAY = 5000,
+        LAZY_LOAD_DELAY = 1000,
 
         // Current scroll height.
         scrollHeight = 0,
@@ -111,10 +111,11 @@
             row = rows[ii];
 
             detail = {};
-            detail.id = row.getAttribute('data-movieid');
+            detail.id = row.querySelector('.title a').getAttribute(
+                    'href').match(/\/title\/(\d+)/)[1];
             detail.title = row.querySelector('.title a').innerHTML;
-            detail.rating = row.querySelector('.rating ' +
-                    '.starbar').getAttribute('data-your-rating');
+            detail.rating = row.querySelectorAll('.rating .starbar ' +
+                    '.personal').length;
             detail.date = row.querySelector('.date').innerHTML;
 
             saveRating(detail);
@@ -124,6 +125,13 @@
     }
 
     function go() {
+        // If spinner is visible, movies are still being loaded. Wait more.
+        var elts = document.getElementsByClassName('basic-spinner');
+        if (!stopped && elts.length > 0) {
+            setTimeout(go, LAZY_LOAD_DELAY);
+            return;
+        }
+
         // Lazily load all movies by controlling the page scroll position.
         if (scrollHeight !== document.body.scrollHeight) {
             scrollHeight = document.body.scrollHeight;
@@ -144,12 +152,15 @@
 
     // Event handler for the Start button.
     function startScript() {
-        alert('The script will repeatedly scroll to the end of this page to ' +
-                'load all your rated movies.\nOnce that\'s done, it\'ll jump ' +
-                'back here and display the ratings in the area below.');
-
-        captureStartState();
-        go();
+        if (confirm('The script will repeatedly scroll to the end of this ' +
+                'page to make Netflix load all your rated movies.\n\nAfter ' +
+                'that, your browser will freeze while the ratings are ' +
+                'extracted from the page.\n\nOnce completed, it\'ll jump ' +
+                'back to the top of this page where your ratings will be ' +
+                'available in the script output area.')) {
+            captureStartState();
+            go();
+        }
     }
 
     // Event handler for the Stop button.
@@ -175,33 +186,29 @@
 
         pElt = document.createElement('p');
         pElt.appendChild(document.createTextNode(
-            'Netflix Ratings Extractor v2.0'
+            'Netflix Ratings Extractor v2.1'
         ));
-        pElt.setAttribute('style', 'margin-top: 1em; font-size: smaller; ' +
-                'font-weight: bold');
+        pElt.setAttribute('style', 'margin-top: 1em; font-weight: bold');
         container.appendChild(pElt);
 
         gui = document.createElement('div');
 
         // Create start button.
         bStart = document.createElement('button');
-        bStart.setAttribute('style', 'font-size: smaller; margin: 0.5em; ' +
-                'vertical-align: middle;');
+        bStart.setAttribute('style', 'margin: 0.5em; vertical-align: middle');
         bStart.appendChild(document.createTextNode('Start'));
         bStart.addEventListener('click', startScript, true);
 
         // Create stop button.
         bStop = document.createElement('button');
-        bStop.setAttribute('style', 'font-size: smaller; margin: 0.5em; ' +
-                'vertical-align: middle;');
+        bStop.setAttribute('style', 'margin: 0.5em; vertical-align: middle');
         bStop.appendChild(document.createTextNode('Stop'));
         bStop.addEventListener('click', stopScript, true);
 
         // Create output area.
         tOutput = document.createElement('textarea');
         tOutput.setAttribute('id', 'script_output');
-        tOutput.setAttribute('style', 'font-size: smaller; width: 100%; ' +
-                'height: 9em');
+        tOutput.setAttribute('style', 'width: 100%; height: 9em');
 
         gui.appendChild(bStart);
         gui.appendChild(bStop);
@@ -209,7 +216,7 @@
         gui.appendChild(document.createElement('br'));
 
         span = document.createElement('span');
-        span.setAttribute('style', 'font-size: smaller; float: left');
+        span.setAttribute('style', 'float: left');
         span.appendChild(document.createTextNode(
             'Script output (columns are tab-separated):'
         ));
@@ -222,14 +229,13 @@
         container.appendChild(gui);
 
         // Add UI to the page.
-        content = document.getElementsByClassName('account-header');
+        content = document.getElementsByClassName('responsive-account-container');
         if (content && content.length) {
             content = content[0];
-            content.insertBefore(container, content.childNodes[0]);
         } else {
             content = document.body;
-            content.appendChild(container);
         }
+        content.insertBefore(container, content.firstChild);
     }
 
     return {
