@@ -25,7 +25,8 @@ Installation instructions
   * Install the [Greasemonkey](https://addons.mozilla.org/en-US/firefox/addon/748) add-on.
   * Restart Firefox.
   * Install this script by clicking on [this GitHub link to the script's raw source code](https://raw.githubusercontent.com/m5n/netflix-ratings-extractor/master/netflix-ratings-extractor.user.js).
-  * Manage your scripts via the `Tools-->Greasemonkey-->Manage User Scripts...` menu.
+  * (You may be asked to opt in for anonymous usage collection. Either accept or decline, but you'll have to click on the above link again.)
+  * Manage your scripts via the `Manage User Scripts...` option in the Greasemonkey menu.
 
 
 * Opera:
@@ -47,9 +48,9 @@ Usage instructions
 1. Go to Netflix and log in.
 1. Navigate to the `Your Account` page via the profile menu at the top-right.
 1. In the `MY PROFILE` section, follow the `Ratings` link.
-1. At the top of your ratings page find the start/stop buttons and results area.
+1. At the top of your ratings page find the start/stop buttons and the script's output area.
 1. Click the start button.
-1. When the script finishes, you can copy the data in the results area to somewhere else (e.g. into a spreadsheet) for further processing. The first row has the column titles. Columns are tab-separated.
+1. When the script finishes, you can copy the data in the output area to a new text file or to somewhere else for further processing (e.g. a spreadsheet). The first row has the column titles. Columns are tab-separated.
 
 A Netflix movie URL can be reconstructed like so: `https://www.netflix.com/title/<netflix_id>`
 
