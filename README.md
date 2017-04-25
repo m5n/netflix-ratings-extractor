@@ -66,6 +66,8 @@ History
 
 https://github.com/m5n/netflix-ratings-extractor/commits/master/netflix-ratings-extractor.user.js
 
+(This script's home used to be [http://userscripts.org/scripts/show/32964](http://userscripts-mirror.org/scripts/show/32964))
+
 
 Acknowledgments
 ---------------

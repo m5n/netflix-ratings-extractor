@@ -3,7 +3,7 @@
 // This is a Greasemonkey user script.
 //
 // Netflix Ratings Extractor
-// Version 2.1, 2016-08-05
+// Version 2.2, 2017-04-24
 // Coded by Maarten van Egmond: https://github.com/m5n/
 // Released under the MIT license.
 //
@@ -11,8 +11,8 @@
 // @name           Netflix Ratings Extractor
 // @namespace      http://userscripts.org/users/64961
 // @author         Maarten
-// @version        2.1
-// @description    v2.1: Export your rated Netflix movies.
+// @version        2.2
+// @description    v2.2: Export your rated Netflix movies.
 // @match *://*.netflix.ca/MoviesYouveSeen*
 // @match *://*.netflix.nl/MoviesYouveSeen*
 // @match *://*.netflix.com/MoviesYouveSeen*
@@ -114,8 +114,20 @@
             detail.id = row.querySelector('.title a').getAttribute(
                     'href').match(/\/title\/(\d+)/)[1];
             detail.title = row.querySelector('.title a').innerHTML;
+
+            // Try old star-rating
             detail.rating = row.querySelectorAll('.rating .starbar ' +
                     '.personal').length;
+            if (detail.rating === 0) {
+                // Try new thumbs up/down rating
+                if (row.querySelector('.rating .rated-up')) {
+                    detail.rating = 'up';
+                } else if (row.querySelector('.rating .rated-down')) {
+                    detail.rating = 'down';
+                } else {
+                    detail.rating = 'error';
+                }
+            }
             detail.date = row.querySelector('.date').innerHTML;
 
             saveRating(detail);
@@ -186,7 +198,7 @@
 
         pElt = document.createElement('p');
         pElt.appendChild(document.createTextNode(
-            'Netflix Ratings Extractor v2.1'
+            'Netflix Ratings Extractor v2.2'
         ));
         pElt.setAttribute('style', 'margin-top: 1em; font-weight: bold');
         container.appendChild(pElt);
