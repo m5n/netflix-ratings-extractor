@@ -66,6 +66,7 @@
 
         result += detail.id + '\t';
         result += detail.title + '\t';
+        result += detail.year + '\t';
         result += detail.rating + '\t';
         result += detail.date;
 
@@ -82,6 +83,7 @@
         saveRating({
             'id': 'ID',
             'title': 'Title',
+            'year': 'Year',
             'rating': 'Rating',
             'date': 'Date'
         });
@@ -113,6 +115,7 @@
             detail = {};
             detail.id = row.getAttribute('data-title-id');
             detail.title = row.querySelector('h4 a').innerText;
+            detail.year = row.querySelector('.title-meta > span:first-child').innerText;
 
             // Try old star-rating
             var rating = row.querySelector('.starbar');
