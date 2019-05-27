@@ -100,7 +100,7 @@
     }
 
     function parseRatings() {
-        var rows = document.querySelectorAll('.retableRow'),
+        var rows = document.querySelectorAll('ul.rated-titles li[data-title-id]'),
             detail,
             row,
             ii;
@@ -111,14 +111,14 @@
             row = rows[ii];
 
             detail = {};
-            detail.id = row.querySelector('.title a').getAttribute(
-                    'href').match(/\/title\/(\d+)/)[1];
-            detail.title = row.querySelector('.title a').innerHTML;
+            detail.id = row.getAttribute('data-title-id');
+            detail.title = row.querySelector('h4 a').innerText;
 
             // Try old star-rating
-            detail.rating = row.querySelectorAll('.rating .starbar ' +
-                    '.personal').length;
-            if (detail.rating === 0) {
+            var rating = row.querySelector('.starbar');
+            if (rating) {
+                detail.rating = rating.getAttribute('data-userrating');
+            } else {
                 // Try new thumbs up/down rating
                 if (row.querySelector('.rating .rated-up')) {
                     detail.rating = 'up';
@@ -128,7 +128,10 @@
                     detail.rating = 'error';
                 }
             }
-            detail.date = row.querySelector('.date').innerHTML;
+            var date = row.querySelector('.timestamp')
+            if (date) {
+                detail.date = date.innerText;
+            }
 
             saveRating(detail);
         }
@@ -138,8 +141,8 @@
 
     function go() {
         // If spinner is visible, movies are still being loaded. Wait more.
-        var elts = document.getElementsByClassName('basic-spinner');
-        if (!stopped && elts.length > 0) {
+        var elt = document.querySelector('#loadMore button');
+        if (!stopped && elt && elt.disabled) {
             setTimeout(go, LAZY_LOAD_DELAY);
             return;
         }
@@ -150,7 +153,9 @@
 
             window.scrollTo(0, scrollHeight);
 
-            if (!stopped) {
+            if (!stopped && elt) {
+                elt.click();
+
                 // Wait until additional movies, if any, are added.
                 setTimeout(go, LAZY_LOAD_DELAY);
                 return;
@@ -207,13 +212,13 @@
 
         // Create start button.
         bStart = document.createElement('button');
-        bStart.setAttribute('style', 'margin: 0.5em; vertical-align: middle');
+        bStart.setAttribute('style', 'margin: 0.5em; vertical-align: middle; color: #000; border: 1px solid #000;');
         bStart.appendChild(document.createTextNode('Start'));
         bStart.addEventListener('click', startScript, true);
 
         // Create stop button.
         bStop = document.createElement('button');
-        bStop.setAttribute('style', 'margin: 0.5em; vertical-align: middle');
+        bStop.setAttribute('style', 'margin: 0.5em; vertical-align: middle; color: #000; border: 1px solid #000;');
         bStop.appendChild(document.createTextNode('Stop'));
         bStop.addEventListener('click', stopScript, true);
 
@@ -241,10 +246,8 @@
         container.appendChild(gui);
 
         // Add UI to the page.
-        content = document.getElementsByClassName('responsive-account-container');
-        if (content && content.length) {
-            content = content[0];
-        } else {
+        content = document.getElementById('body');
+        if (!content) {
             content = document.body;
         }
         content.insertBefore(container, content.firstChild);

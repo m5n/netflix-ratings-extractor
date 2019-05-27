@@ -57,7 +57,7 @@ A Netflix movie URL can be reconstructed like so: `https://www.netflix.com/title
 
 Known issues
 ------------
-* If you have the streaming plan, this script will work "as is". If you have the DVD plan, try loading https://www.netflix.com/MoviesYouveSeen and scroll to the end of the page. If it loads more movies, great, you can use this script "as is". If it does not, try [v1.18 of this script](https://raw.githubusercontent.com/m5n/netflix-ratings-extractor/10e33f0063aee2b26f03c12ea3acf5dc2d94b3fe/netflix-ratings-extractor.user.js).
+* If you have the streaming plan, this script will work "as is". If you have the DVD plan, try loading https://dvd.netflix.com/MoviesYouveSeen and scroll to the end of the page. If it loads more movies, great, you can use this script "as is". If it does not, try [v1.18 of this script](https://raw.githubusercontent.com/m5n/netflix-ratings-extractor/10e33f0063aee2b26f03c12ea3acf5dc2d94b3fe/netflix-ratings-extractor.user.js).
 * Extracting the ratings from the page can be slow if you have a lot of rated movies. Extracting 2500 ratings can take more than 60 seconds.
 
 
